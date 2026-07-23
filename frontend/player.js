@@ -446,17 +446,23 @@ function app() {
       this.playing = true;
 
       if (this._isMobile()) {
-        this._audio.muted = true;
+        this._audio.muted = false;
         const token = ++this._seekToken;
         this._log(`playFromSeg idx=${idx} repeat=${repeat} target=${targetTime.toFixed(3)} token=${token}`);
         const onSeeked = () => {
           this._audio.removeEventListener('seeked', onSeeked);
           if (token !== this._seekToken) { this._log(`seeked STALE token=${token} cur=${this._seekToken}`); return; }
-          this._audio.muted = false;
-          this._log(`seeked OK → unmute pos=${this._audio.currentTime.toFixed(3)}`);
-          this._attachTracker();
+          this._log(`seeked OK → play pos=${this._audio.currentTime.toFixed(3)}`);
+          this._audio.play().then(() => {
+            this._attachTracker();
+          }).catch(e => {
+            this._log(`play() failed: ${e.message}, fallback mute`);
+            this._audio.muted = false;
+            this._attachTracker();
+          });
         };
         this._audio.addEventListener('seeked', onSeeked);
+        this._audio.pause();
         this._audio.currentTime = targetTime;
       } else {
         this._seekAndPlay(targetTime, () => {
@@ -491,8 +497,8 @@ function app() {
           fired = true;
           this._clearTrack();
           if (mobile) {
-            this._log(`stop → mute pos=${this._audio.currentTime.toFixed(3)}`);
-            this._audio.muted = true;
+            this._log(`stop → pause pos=${this._audio.currentTime.toFixed(3)}`);
+            this._audio.pause();
           } else {
             this._audio.pause();
           }
@@ -547,7 +553,6 @@ function app() {
 
       if (infinite || this.currentRepeat < maxRepeat) {
         const seg = this.segments[this.currentSegIdx];
-        if (this._isMobile()) this._audio.currentTime = seg.start;
         this._repeatTimer = setTimeout(() => {
           this._playFromSeg(this.currentSegIdx, this.currentRepeat + 1, seg.start);
         }, this.settings.pause_between_repeats * 1000);
@@ -555,7 +560,6 @@ function app() {
         const nextIdx = this.currentSegIdx + 1;
         if (nextIdx < this.segments.length) {
           const nextStart = this._isMobile() ? this.segments[nextIdx].start : Math.max(stoppedAt, this.segments[nextIdx].start);
-          if (this._isMobile()) this._audio.currentTime = nextStart;
           this._repeatTimer = setTimeout(() => {
             this._playFromSeg(nextIdx, 1, nextStart);
           }, this.settings.pause_between_segments * 1000);
