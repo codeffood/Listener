@@ -481,7 +481,7 @@
       <div class="flex items-center justify-between mb-2">
         <span class="text-xs font-mono text-gray-400">Debug Log</span>
         <div class="flex gap-2">
-          <button @click="navigator.clipboard.writeText(debugLogs.join('\n'))" class="text-xs text-gray-500 hover:text-blue-400">复制</button>
+          <button @click="(() => { const t = document.createElement('textarea'); t.value = debugLogs.join('\n'); t.style.position='fixed'; t.style.opacity='0'; document.body.appendChild(t); t.focus(); t.select(); try { document.execCommand('copy'); } catch(e) {} document.body.removeChild(t); })()" class="text-xs text-gray-500 hover:text-blue-400">复制</button>
           <button @click="debugLogs=[]" class="text-xs text-gray-500 hover:text-red-400">清空</button>
         </div>
       </div>
