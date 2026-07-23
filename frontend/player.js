@@ -490,6 +490,7 @@ function app() {
         // seg.end already has 150ms padding, so last word is still fully audible.
         const stopAt = seg.end - 0.03;
         let fired = false;
+        let started = false;
         const mobile = this._isMobile();
         this._log(`attachTracker seg=${this.currentSegIdx} start=${seg.start.toFixed(3)} stopAt=${stopAt.toFixed(3)} mobile=${mobile}`);
         const stop = () => {
@@ -509,7 +510,9 @@ function app() {
         const timerId = setTimeout(stop, delay);
 
         const onTimeUpdate = () => {
-          if (this._audio.currentTime >= stopAt) stop();
+          const t = this._audio.currentTime;
+          if (t >= seg.start && t < stopAt + 1.0) started = true;
+          if (started && t >= stopAt) stop();
         };
         this._audio.addEventListener('timeupdate', onTimeUpdate);
 
