@@ -438,9 +438,16 @@ function app() {
       this.playing = true;
 
       if (this._isMobile()) {
-        this._audio.muted = false;
+        this._audio.muted = true;
+        const token = this._seekToken;
+        const onSeeked = () => {
+          this._audio.removeEventListener('seeked', onSeeked);
+          if (token !== this._seekToken) return;
+          this._audio.muted = false;
+          this._attachTracker();
+        };
+        this._audio.addEventListener('seeked', onSeeked);
         this._audio.currentTime = targetTime;
-        this._attachTracker();
       } else {
         this._seekAndPlay(targetTime, () => {
           this._audio.play();
