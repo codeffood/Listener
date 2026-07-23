@@ -153,16 +153,16 @@ function app() {
       await this.loadLibrary();
     },
 
-    exportSegments(fmt) {
+    exportSegments() {
       if (!this.segments.length) return;
       fetch('/api/archive/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: this.currentFile, segments: this.segments, fmt }),
+        body: JSON.stringify({ filename: this.currentFile, segments: this.segments }),
       }).then(r => {
         const cd = r.headers.get('content-disposition') || '';
         const m = cd.match(/filename="(.+?)"/);
-        const name = m ? m[1] : (fmt === 'docx' ? 'export.docx' : 'export.txt');
+        const name = m ? m[1] : 'export.txt';
         return r.blob().then(b => ({ b, name }));
       }).then(({ b, name }) => {
         const url = URL.createObjectURL(b);

@@ -183,19 +183,10 @@
                 <span>↺</span><span>重新分句</span>
               </button>
               <!-- 导出 -->
-              <div class="relative" x-data="{open:false}">
-                <button @click="open=!open"
-                  class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded flex items-center gap-1">
-                  <span>↓</span><span>导出</span>
-                </button>
-                <div x-show="open" @click.outside="open=false"
-                  class="absolute right-0 mt-1 w-28 bg-gray-800 border border-gray-700 rounded shadow-lg z-10">
-                  <button @click="exportSegments('txt'); open=false"
-                    class="w-full text-left text-xs px-3 py-2 hover:bg-gray-700">📄 文本 (.txt)</button>
-                  <button @click="exportSegments('docx'); open=false"
-                    class="w-full text-left text-xs px-3 py-2 hover:bg-gray-700">📝 Word (.docx)</button>
-                </div>
-              </div>
+              <button @click="exportSegments()"
+                class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded flex items-center gap-1">
+                <span>↓</span><span>导出</span>
+              </button>
               <span class="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full" x-text="`${segments.length} 句`"></span>
             </div>
           </div>

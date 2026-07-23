@@ -5,7 +5,6 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
-import io
 
 router = APIRouter(prefix="/api/archive", tags=["archive"])
 
@@ -201,7 +200,6 @@ def restore_entry(req: RestoreRequest):
 class ExportRequest(BaseModel):
     filename: str
     segments: list   # [{id, start, end, text}, ...]
-    fmt: str = "txt" # "txt" | "docx"
 
 
 def _fmt_time(s: float) -> str:
@@ -213,56 +211,15 @@ def _fmt_time(s: float) -> str:
 @router.post("/export")
 def export_segments(req: ExportRequest):
     title = Path(req.filename).stem
-
-    if req.fmt == "docx":
-        try:
-            from docx import Document
-            from docx.shared import Pt, RGBColor
-            from docx.enum.text import WD_ALIGN_PARAGRAPH
-        except ImportError:
-            raise HTTPException(500, "python-docx 未安装，请在 requirements.txt 中添加 python-docx 并重建镜像")
-
-        doc = Document()
-
-        # Title
-        heading = doc.add_heading(title, level=1)
-        heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-        doc.add_paragraph()  # spacer
-
-        for seg in req.segments:
-            ts = doc.add_paragraph()
-            ts.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            run_ts = ts.add_run(f"[{_fmt_time(seg['start'])} → {_fmt_time(seg['end'])}]")
-            run_ts.font.size = Pt(9)
-            run_ts.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
-
-            body = doc.add_paragraph()
-            run_body = body.add_run(seg["text"].strip())
-            run_body.font.size = Pt(12)
-            body.paragraph_format.space_after = Pt(8)
-
-        buf = io.BytesIO()
-        doc.save(buf)
-        buf.seek(0)
-        safe = title.replace(" ", "_")
-        return StreamingResponse(
-            buf,
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={"Content-Disposition": f'attachment; filename="{safe}.docx"'},
-        )
-
-    else:
-        # plain text
-        lines = [title, "=" * len(title), ""]
-        for seg in req.segments:
-            lines.append(f"[{_fmt_time(seg['start'])} → {_fmt_time(seg['end'])}]")
-            lines.append(seg["text"].strip())
-            lines.append("")
-        content = "\n".join(lines)
-        safe = title.replace(" ", "_")
-        return StreamingResponse(
-            iter([content.encode("utf-8")]),
-            media_type="text/plain; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{safe}.txt"'},
-        )
+    lines = [title, "=" * len(title), ""]
+    for seg in req.segments:
+        lines.append(f"[{_fmt_time(seg['start'])} → {_fmt_time(seg['end'])}]")
+        lines.append(seg["text"].strip())
+        lines.append("")
+    content = "\n".join(lines)
+    safe = title.replace(" ", "_")
+    return StreamingResponse(
+        iter([content.encode("utf-8")]),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{safe}.txt"'},
+    )
