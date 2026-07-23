@@ -46,6 +46,15 @@ function app() {
     _seekToken: 0,
     playMode: 'single',
 
+    // ── 归档 ──────────────────────────────────────────────
+    archiveFolders: [],
+    archiveItems: [],
+    showArchiveModal: false,
+    archiveTarget: null,      // {type, name, path, nas_idx}
+    archiveFolderInput: '',   // new folder name typed by user
+    archiveSelectedFolder: '', // picked from existing list
+    showArchiveSection: false,
+
     async init() {
       this._audio = document.getElementById('audio-player');
       this._audio.addEventListener('timeupdate', () => {
@@ -61,6 +70,7 @@ function app() {
       });
       await this.loadSettings();
       await this.loadLibrary();
+      await this.loadArchiveFolders();
 
       // System media controls (lock screen / notification bar)
       if ('mediaSession' in navigator) {
@@ -94,9 +104,72 @@ function app() {
     // ── 库 ────────────────────────────────────────────────
     async loadLibrary() {
       const r = await fetch('/api/library');
-      this.libraryItems = await r.json();
-      // keep localFiles in sync for legacy code paths
+      const all = await r.json();
+      this.libraryItems = all.filter(f => !f.archived);
+      this.archiveItems  = all.filter(f =>  f.archived);
       this.localFiles = this.libraryItems.filter(f => f.type === 'local');
+    },
+
+    async loadArchiveFolders() {
+      const r = await fetch('/api/archive/folders');
+      this.archiveFolders = await r.json();
+    },
+
+    openArchiveModal(item) {
+      this.archiveTarget = item;
+      this.archiveFolderInput = '';
+      this.archiveSelectedFolder = this.archiveFolders[0] || '';
+      this.showArchiveModal = true;
+    },
+
+    async confirmArchive() {
+      const folder = (this.archiveFolderInput.trim() || this.archiveSelectedFolder).trim();
+      if (!folder) { alert('请输入或选择归档文件夹'); return; }
+      const item = this.archiveTarget;
+      const body = item.type === 'nas'
+        ? { folder, path: item.path, nas_idx: item.nas_idx }
+        : { folder, name: item.name };
+      const r = await fetch('/api/archive/archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) { alert('归档失败: ' + await r.text()); return; }
+      this.showArchiveModal = false;
+      await this.loadArchiveFolders();
+      await this.loadLibrary();
+    },
+
+    async restoreItem(item) {
+      const body = item.type === 'nas'
+        ? { path: item.path, nas_idx: item.nas_idx }
+        : { name: item.name };
+      const r = await fetch('/api/archive/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) { alert('恢复失败: ' + await r.text()); return; }
+      await this.loadLibrary();
+    },
+
+    exportSegments(fmt) {
+      if (!this.segments.length) return;
+      fetch('/api/archive/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: this.currentFile, segments: this.segments, fmt }),
+      }).then(r => {
+        const cd = r.headers.get('content-disposition') || '';
+        const m = cd.match(/filename="(.+?)"/);
+        const name = m ? m[1] : (fmt === 'docx' ? 'export.docx' : 'export.txt');
+        return r.blob().then(b => ({ b, name }));
+      }).then(({ b, name }) => {
+        const url = URL.createObjectURL(b);
+        const a = document.createElement('a');
+        a.href = url; a.download = name; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      });
     },
 
     async uploadFile(event) {

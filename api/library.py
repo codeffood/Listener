@@ -9,6 +9,7 @@ router = APIRouter(prefix="/api/library", tags=["library"])
 LIBRARY_PATH = Path("data/library.json")
 UPLOAD_DIR = Path("data/uploads")
 NAS_CACHE_DIR = Path("data/cache/nas")
+ARCHIVE_DIR = Path("data/archive")
 
 
 def _nas_cache_path(nas_idx: int, remote_path: str) -> Path:
@@ -38,10 +39,20 @@ def _enrich(entry: dict) -> dict:
     """Add live transcribed status without storing it."""
     e = dict(entry)
     if e["type"] == "nas":
-        e["transcribed"] = _nas_cache_path(e["nas_idx"], e["path"]).exists()
+        if e.get("archived"):
+            cache_name = e.get("archive_cache_name", "")
+            folder = e.get("archive_folder", "")
+            e["transcribed"] = bool(cache_name and (ARCHIVE_DIR / folder / cache_name).exists())
+        else:
+            e["transcribed"] = _nas_cache_path(e["nas_idx"], e["path"]).exists()
     else:
-        audio = UPLOAD_DIR / e["name"]
-        cache = _local_cache_path(e["name"])
+        if e.get("archived"):
+            folder = e.get("archive_folder", "")
+            audio = ARCHIVE_DIR / folder / e["name"]
+            cache = ARCHIVE_DIR / folder / (Path(e["name"]).stem + ".json")
+        else:
+            audio = UPLOAD_DIR / e["name"]
+            cache = _local_cache_path(e["name"])
         e["exists"] = audio.exists()
         e["transcribed"] = cache.exists()
         if audio.exists():
@@ -52,7 +63,8 @@ def _enrich(entry: dict) -> dict:
 def sync_local_files():
     """Add any local uploads not yet in library, remove entries whose file is gone."""
     entries = _load()
-    local_names = {e["name"] for e in entries if e["type"] == "local"}
+    # Only consider non-archived local entries for sync
+    local_names = {e["name"] for e in entries if e["type"] == "local" and not e.get("archived")}
 
     # Add new local files
     changed = False

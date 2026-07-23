@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = Path("data/uploads")
 LEGACY_CACHE_DIR = Path("data/cache")
+ARCHIVE_DIR = Path("data/archive")
 
 AUDIO_MIME = {
     ".mp3": "audio/mpeg",
@@ -88,6 +89,13 @@ async def upload_file(file: UploadFile = File(...)):
 @router.get("/audio/{filename}")
 def serve_audio(filename: str, request: Request):
     path = UPLOAD_DIR / filename
+    if not path.exists():
+        # look in archive subfolders
+        for sub in ARCHIVE_DIR.iterdir() if ARCHIVE_DIR.exists() else []:
+            candidate = sub / filename
+            if candidate.exists():
+                path = candidate
+                break
     if not path.exists():
         raise HTTPException(404, "文件不存在")
 
