@@ -527,25 +527,35 @@
       <h2 class="text-base font-semibold mb-1">归档文件</h2>
       <p class="text-xs text-gray-400 mb-4 truncate" x-text="archiveTarget?.name"></p>
 
-      <!-- 已有文件夹 -->
+      <!-- 树形文件夹列表 -->
       <div x-show="archiveFolders.length > 0" class="mb-3">
         <label class="text-xs text-gray-400 block mb-1">选择已有文件夹</label>
-        <select x-model="archiveSelectedFolder"
-          class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+        <div class="bg-gray-800 border border-gray-700 rounded max-h-40 overflow-y-auto">
           <template x-for="fd in archiveFolders" :key="fd">
-            <option :value="fd" x-text="fd"></option>
+            <div @click="archiveSelectedFolder = fd; archiveFolderInput = ''"
+              :class="archiveSelectedFolder === fd ? 'bg-yellow-700/40 text-yellow-300' : 'hover:bg-gray-700 text-gray-300'"
+              class="flex items-center gap-1 px-2 py-1.5 cursor-pointer text-xs transition-colors">
+              <!-- indent by depth -->
+              <template x-for="_ in Array(fd.split('/').length - 1)" :key="_">
+                <span class="inline-block w-3 shrink-0 border-l border-gray-600 h-4"></span>
+              </template>
+              <span class="shrink-0 text-gray-500 mr-0.5" x-text="fd.split('/').length > 1 ? '└' : '📁'"></span>
+              <span x-text="fd.split('/').pop()"></span>
+              <span class="ml-1 text-gray-600 text-xs truncate" x-show="fd.split('/').length > 1" x-text="'(' + fd + ')'"></span>
+            </div>
           </template>
-        </select>
+        </div>
+        <p x-show="archiveSelectedFolder" class="text-xs text-yellow-500 mt-1 truncate" x-text="'已选: ' + archiveSelectedFolder"></p>
       </div>
 
-      <!-- 新建文件夹 -->
+      <!-- 新建文件夹（支持路径如 2024/BBC） -->
       <div class="mb-5">
         <label class="text-xs text-gray-400 block mb-1"
-          x-text="archiveFolders.length > 0 ? '或新建文件夹' : '新建文件夹'"></label>
-        <input type="text" x-model="archiveFolderInput" placeholder="输入文件夹名称"
+          x-text="archiveFolders.length > 0 ? '或输入新路径' : '输入文件夹路径'"></label>
+        <input type="text" x-model="archiveFolderInput" placeholder="如: 2024/BBC 或 已学完"
           class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
           @keydown.enter="confirmArchive()" />
-        <p class="text-xs text-gray-600 mt-1">留空则使用上方选中的文件夹</p>
+        <p class="text-xs text-gray-600 mt-1">支持多层路径，留空则使用上方选中的文件夹</p>
       </div>
 
       <div class="flex gap-2">

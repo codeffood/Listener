@@ -53,7 +53,12 @@ def _archived_cache_path(folder: str, name: str) -> Path:
 @router.get("/folders")
 def list_folders():
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-    return [d.name for d in sorted(ARCHIVE_DIR.iterdir()) if d.is_dir()]
+    result = []
+    for p in sorted(ARCHIVE_DIR.rglob("*")):
+        if p.is_dir():
+            rel = p.relative_to(ARCHIVE_DIR).as_posix()
+            result.append(rel)
+    return result
 
 
 # ── list archived entries ─────────────────────────────────────────────────────
