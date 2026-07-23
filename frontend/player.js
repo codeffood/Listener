@@ -439,7 +439,7 @@ function app() {
 
       if (this._isMobile()) {
         this._audio.muted = true;
-        const token = this._seekToken;
+        const token = ++this._seekToken;
         const onSeeked = () => {
           this._audio.removeEventListener('seeked', onSeeked);
           if (token !== this._seekToken) return;
