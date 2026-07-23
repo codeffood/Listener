@@ -25,6 +25,7 @@ function app() {
     settings: {},
     settingsSaved: false,
     wdItems: [],
+    wdSort: 'none',  // 'none' | 'asc' | 'desc'
     wdPath: '/',
     wdPathStack: [],
     wdSelectedNas: '',
@@ -711,7 +712,16 @@ function app() {
         if (!r.ok) { const e = await r.json(); this.wdError = e.detail || '连接失败'; return; }
         const data = await r.json();
         this.wdItems = data.items;
+        this._applyWdSort();
       } catch { this.wdError = '网络错误'; }
+    },
+
+    _applyWdSort() {
+      if (this.wdSort === 'asc') {
+        this.wdItems = [...this.wdItems].sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
+      } else if (this.wdSort === 'desc') {
+        this.wdItems = [...this.wdItems].sort((a, b) => a.name.toLowerCase() > b.name.toLowerCase() ? -1 : 1);
+      }
     },
 
     enterDir(path) {

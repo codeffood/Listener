@@ -333,7 +333,7 @@
 
       <!-- 选择 NAS -->
       <div class="mb-3 flex gap-2">
-        <select x-model="wdSelectedNas" @change="wdItems=[]; wdPath='/'; wdPathStack=[]; wdError=''"
+        <select x-model="wdSelectedNas" @change="wdItems=[]; wdPath='/'; wdPathStack=[]; wdError=''; wdSort='none'"
           class="w-36 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
           <option value="">-- 选择 NAS --</option>
           <template x-for="(nas, i) in settings.nas_list" :key="i">
@@ -358,10 +358,12 @@
           ← 返回
         </button>
         <span class="text-xs text-gray-500 truncate flex-1" x-text="wdPath"></span>
-        <button @click="wdItems = [...wdItems].sort((a,b) => (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1))"
-          class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-full transition-colors">A→Z</button>
-        <button @click="wdItems = [...wdItems].sort((a,b) => (a.name.toLowerCase() > b.name.toLowerCase() ? -1 : 1))"
-          class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-full transition-colors">Z→A</button>
+        <button @click="wdSort='asc'; _applyWdSort()"
+          :class="wdSort==='asc' ? 'bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600'"
+          class="text-xs px-3 py-1.5 rounded-full transition-colors">A→Z</button>
+        <button @click="wdSort='desc'; _applyWdSort()"
+          :class="wdSort==='desc' ? 'bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600'"
+          class="text-xs px-3 py-1.5 rounded-full transition-colors">Z→A</button>
       </div>
 
       <div class="space-y-1">
