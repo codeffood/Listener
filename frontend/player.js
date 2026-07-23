@@ -396,6 +396,10 @@ function app() {
       this._audio.currentTime = targetTime;
     },
 
+    _isMobile() {
+      return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || ('ontouchstart' in window);
+    },
+
     // ── 复读模式 ──────────────────────────────────────────
     toggleRepeatMode() {
       this.repeatMode = !this.repeatMode;
@@ -428,16 +432,21 @@ function app() {
     },
 
     _playFromSeg(idx, repeat, targetTime) {
-      // 先清掉 tracker，防止 timeupdate 在 seek 期间修改 currentSegIdx
       this._clearTrack();
       this.currentSegIdx = idx;
       this.currentRepeat = repeat;
       this.playing = true;
 
-      this._seekAndPlay(targetTime, () => {
-        this._audio.play();
+      if (this._isMobile()) {
+        this._audio.muted = false;
+        this._audio.currentTime = targetTime;
         this._attachTracker();
-      });
+      } else {
+        this._seekAndPlay(targetTime, () => {
+          this._audio.play();
+          this._attachTracker();
+        });
+      }
 
       if (this.autoScroll) {
         this.$nextTick(() => {
@@ -458,11 +467,16 @@ function app() {
         // seg.end already has 150ms padding, so last word is still fully audible.
         const stopAt = seg.end - 0.03;
         let fired = false;
+        const mobile = this._isMobile();
         const stop = () => {
           if (fired || token !== this._seekToken) return;
           fired = true;
           this._clearTrack();
-          this._audio.pause();
+          if (mobile) {
+            this._audio.muted = true;
+          } else {
+            this._audio.pause();
+          }
           this._scheduleRepeatNext(this._audio.currentTime);
         };
 
@@ -565,10 +579,10 @@ function app() {
     },
 
     _pause() {
-      this._seekToken++;          // invalidate any in-flight seeked callbacks
+      this._seekToken++;
       this.playing = false;
-      this._audio.pause();
       this._audio.muted = false;
+      this._audio.pause();
       this._clearTrack();
       if (this._repeatTimer) { clearTimeout(this._repeatTimer); this._repeatTimer = null; }
     },
