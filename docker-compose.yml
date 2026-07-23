@@ -13,6 +13,5 @@ services:
       - /data/dev/Listener/api:/app/api
       - /data/dev/Listener/frontend:/app/frontend
       - /data/dev/Listener/main.py:/app/main.py
-      - /data/dev/Listener/models:/root/.cache/huggingface
     environment:
       - TZ=Asia/Shanghai
