@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Listener</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen" x-data="app()" x-init="init()">
+
+  <!-- 顶部导航 -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+    <h1 class="text-lg font-bold tracking-wide">🎧 Listener</h1>
+    <div class="flex gap-2">
+      <button @click="tab='files'"
+        :class="tab==='files' ? 'bg-blue-600' : 'bg-gray-700'"
+        class="px-3 py-1 rounded text-sm">文件</button>
+      <button @click="tab='player'"
+        x-show="currentFile"
+        :class="tab==='player' ? 'bg-blue-600' : 'bg-gray-700'"
+        class="px-3 py-1 rounded text-sm">播放器</button>
+      <button @click="tab='webdav'"
+        :class="tab==='webdav' ? 'bg-blue-600' : 'bg-gray-700'"
+        class="px-3 py-1 rounded text-sm">NAS</button>
+      <button @click="tab='settings'"
+        :class="tab==='settings' ? 'bg-blue-600' : 'bg-gray-700'"
+        class="px-3 py-1 rounded text-sm">设置</button>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-4 py-6">
+
+    <!-- 播放器 Tab -->
+    <div x-show="tab==='player'">
+
+      <!-- 未选文件时 -->
+      <div class="mb-4 text-center py-10" x-show="!currentFile">
+        <p class="text-gray-400 text-sm">请到「文件」标签选择文件播放</p>
+        <button @click="tab='files'" class="mt-3 text-xs bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded-full">前往文件库</button>
+      </div>
+
+      <!-- 播放器主界面 -->
+      <div x-show="currentFile">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm text-gray-400 truncate" x-text="currentFile"></span>
+          <button @click="currentFile=''; segments=[]; currentSegIdx=0; stopPlayback()"
+            class="text-xs text-gray-500 hover:text-red-400">✕ 关闭</button>
+        </div>
+
+        <!-- 分句状态提示 -->
+        <div x-show="transcribeStatus==='processing'" class="mb-4 p-3 bg-gray-800 rounded flex items-center gap-2">
+          <div class="animate-spin w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full"></div>
+          <span class="text-sm text-gray-300">正在分句，请稍候...</span>
+        </div>
+        <div x-show="transcribeStatus==='error'" class="mb-4 p-3 bg-red-900 rounded">
+          <p class="text-sm text-red-300 font-medium mb-1">分句失败</p>
+          <pre class="text-xs text-red-400 overflow-auto max-h-32 whitespace-pre-wrap" x-text="transcribeError"></pre>
+        </div>
+
+        <!-- 当前句显示（有分句数据时） -->
+        <div x-show="segments.length > 0" class="mb-3">
+          <div class="bg-gray-800 rounded-xl p-5 text-center min-h-[80px] flex flex-col items-center justify-center">
+            <p class="text-xl leading-relaxed font-medium"
+               x-text="hideText ? '...' : (currentSegment?.text || '')"></p>
+            <p class="text-xs text-gray-500 mt-2"
+               x-text="repeatMode ? `第 ${currentSegIdx+1} / ${segments.length} 句 · 第 ${currentRepeat} / ${repeatCount === 0 ? '∞' : repeatCount} 次` : `第 ${currentSegIdx+1} / ${segments.length} 句`">
+            </p>
+          </div>
+        </div>
+
+        <!-- 无分句时提示 -->
+        <div x-show="segments.length === 0 && transcribeStatus !== 'processing'" class="mb-3">
+          <div class="bg-gray-800 rounded-xl p-4 text-center text-sm text-gray-500">
+            尚未分句 — 可直接播放，或到「文件」页点「分句」
+          </div>
+        </div>
+
+        <!-- 进度条 -->
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-xs text-gray-500 w-10 text-right" x-text="formatTime(currentTime)"></span>
+          <div class="flex-1 h-1.5 bg-gray-700 rounded cursor-pointer" @click="seekFromBar($event)">
+            <div class="h-1.5 bg-blue-500 rounded transition-all"
+                 :style="`width: ${duration > 0 ? (currentTime/duration*100) : 0}%`"></div>
+          </div>
+          <span class="text-xs text-gray-500 w-10" x-text="formatTime(duration)"></span>
+        </div>
+
+        <!-- 播放按钮 -->
+        <div class="flex items-center justify-center mb-3">
+          <button @click="togglePlay()"
+            class="w-14 h-14 flex items-center justify-center bg-blue-600 hover:bg-blue-500 rounded-full text-2xl">
+            <span x-text="playing ? '⏸' : '▶'"></span>
+          </button>
+        </div>
+
+        <!-- 播放模式 -->
+        <div class="flex items-center justify-center gap-1.5 mb-4">
+          <template x-for="m in [{v:'single',l:'单曲'},{v:'single-loop',l:'单曲循环'},{v:'list',l:'列表'},{v:'list-loop',l:'列表循环'}]" :key="m.v">
+            <button @click="playMode = m.v"
+              :class="playMode === m.v ? 'bg-green-700 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'"
+              class="text-xs px-2.5 py-1 rounded-full transition-colors" x-text="m.l"></button>
+          </template>
+        </div>
+
+        <!-- 复读模式 + 次数 + 自动定位 -->
+        <div class="flex items-center justify-between mb-4 gap-2">
+
+          <!-- 复读开关 -->
+          <button @click="toggleRepeatMode()"
+            :class="repeatMode ? 'bg-orange-600 hover:bg-orange-500 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-400'"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0">
+            <span>🔁</span>
+            <span>复读</span>
+          </button>
+
+          <!-- 复读次数 -->
+          <div class="flex-1" :class="repeatMode ? 'opacity-100' : 'opacity-40 pointer-events-none'">
+            <!-- 第一排 1-5 -->
+            <div class="flex justify-center gap-1 mb-1">
+              <template x-for="n in [1,2,3,4,5]" :key="n">
+                <button @click="repeatCount = n"
+                  :class="repeatCount === n ? 'bg-orange-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'"
+                  class="w-7 h-7 rounded text-xs font-mono" x-text="n"></button>
+              </template>
+            </div>
+            <!-- 第二排 6-10 -->
+            <div class="flex justify-center gap-1 mb-1">
+              <template x-for="n in [6,7,8,9,10]" :key="n">
+                <button @click="repeatCount = n"
+                  :class="repeatCount === n ? 'bg-orange-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'"
+                  class="w-7 h-7 rounded text-xs font-mono" x-text="n"></button>
+              </template>
+            </div>
+            <!-- 中间：∞ + 自定义 -->
+            <div class="flex justify-center items-center gap-2">
+              <button @click="repeatCount = 0"
+                :class="repeatCount === 0 ? 'bg-orange-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'"
+                class="px-3 h-7 rounded text-sm">∞</button>
+              <input type="number" x-model.number="repeatCount" min="0" max="99"
+                class="w-14 h-7 bg-gray-700 border border-gray-600 rounded px-1.5 text-xs text-center" />
+            </div>
+          </div>
+
+          <!-- 自动定位开关 -->
+          <button @click="autoScroll = !autoScroll"
+            :class="autoScroll ? 'bg-blue-700 hover:bg-blue-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-400'"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0">
+            <span>📍</span>
+            <span x-text="autoScroll ? '自动定位' : '手动浏览'"></span>
+          </button>
+
+        </div>
+
+        <!-- 分句列表 -->
+        <div x-show="segments.length > 0">
+          <!-- 上一句 / 下一句 居中 -->
+          <div class="flex items-center justify-center gap-3 mb-3">
+            <button @click="prevSegment()" :disabled="currentSegIdx === 0"
+              class="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 rounded-full text-sm">← 上一句</button>
+            <span class="text-xs text-gray-500 tabular-nums w-16 text-center" x-text="`${currentSegIdx+1} / ${segments.length}`"></span>
+            <button @click="nextSegment()" :disabled="currentSegIdx >= segments.length - 1"
+              class="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 rounded-full text-sm">下一句 →</button>
+          </div>
+          <!-- 列表标题 -->
+          <div class="flex items-center justify-between mb-2 px-1">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-widest">分句列表</span>
+            <div class="flex items-center gap-2">
+              <!-- 按标点分句（暂隐藏）
+              <label class="flex items-center gap-1 cursor-pointer text-xs text-gray-400 select-none">
+                <input type="checkbox" x-model="splitByPunctuation" class="accent-orange-500" />
+                按标点
+              </label>
+              -->
+              <button @click="hideText = !hideText"
+                :class="hideText ? 'bg-purple-700 hover:bg-purple-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'"
+                class="text-xs px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                <span x-text="hideText ? '👁 显示' : '🙈 听写'"></span>
+              </button>
+              <button @click="confirm('重新分句会清除当前结果，确定？') && reTranscribe()"
+                class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded flex items-center gap-1">
+                <span>↺</span><span>重新分句</span>
+              </button>
+              <span class="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full" x-text="`${segments.length} 句`"></span>
+            </div>
+          </div>
+          <div class="space-y-1 max-h-72 overflow-y-auto pr-1">
+            <template x-for="(seg, idx) in segments" :key="seg.id">
+              <div @click="jumpToSegment(idx)"
+                :data-seg-idx="idx"
+                :class="idx === currentSegIdx
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                  : 'bg-gray-800/60 text-gray-300 hover:bg-gray-700 hover:text-white'"
+                class="rounded-lg px-3 py-2.5 cursor-pointer flex gap-3 items-baseline transition-colors duration-150 group">
+                <span class="text-xs w-5 shrink-0 text-right font-mono"
+                  :class="idx === currentSegIdx ? 'text-blue-200' : 'text-gray-600 group-hover:text-gray-400'"
+                  x-text="idx+1"></span>
+                <p class="text-sm leading-relaxed flex-1" x-text="hideText ? '···' : seg.text"></p>
+                <span class="text-xs shrink-0 font-mono tabular-nums"
+                  :class="idx === currentSegIdx ? 'text-blue-200' : 'text-gray-600 group-hover:text-gray-400'"
+                  x-text="formatTime(seg.start)"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 文件 Tab -->
+    <div x-show="tab==='files'">
+      <!-- 上传区 -->
+      <div class="mb-4">
+        <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.mp4,.flac,.ogg,.aac" class="hidden" @change="uploadFile($event)" />
+        <button @click="document.getElementById('file-input').click()"
+          :disabled="uploading"
+          class="w-full border-2 border-dashed border-gray-700 hover:border-blue-500 rounded-lg px-4 py-5 text-sm text-gray-400 hover:text-blue-400 transition-colors disabled:opacity-50">
+          <span x-show="!uploading">＋ 点击上传本地音频文件（mp3 / mp4 / wav / m4a / flac）</span>
+          <span x-show="uploading" class="flex items-center justify-center gap-2">
+            <span class="animate-spin inline-block w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full"></span>
+            上传中...
+          </span>
+        </button>
+      </div>
+
+      <!-- 全部分句 + 排序 -->
+      <div class="mb-3 flex justify-between items-center">
+        <div class="flex gap-1.5">
+          <button @click="libraryItems = [...libraryItems].sort((a,b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1)"
+            class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-full transition-colors">A→Z</button>
+          <button @click="libraryItems = [...libraryItems].sort((a,b) => a.name.toLowerCase() > b.name.toLowerCase() ? -1 : 1)"
+            class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-full transition-colors">Z→A</button>
+        </div>
+        <button @click="transcribeAll()"
+          x-show="libraryItems.some(f => !f.transcribed)"
+          class="text-xs bg-gray-700 hover:bg-blue-700 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5">
+          ⚡ 全部分句
+        </button>
+      </div>
+
+      <!-- 统一库列表 -->
+      <div class="space-y-1.5">
+        <template x-for="f in libraryItems" :key="f.type === 'nas' ? f.path : f.name">
+          <div
+            class="bg-gray-800 hover:bg-gray-700 rounded-lg px-4 py-3 flex items-center gap-3 group transition-colors"
+            :class="currentFile === f.name ? 'ring-1 ring-blue-500' : ''">
+            <!-- 分句状态图标 -->
+            <div class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
+              :class="f.transcribed ? 'bg-blue-900/50 text-blue-400' : 'bg-gray-700 text-gray-400'">
+              <span x-text="f.transcribed ? '✓' : '🎵'"></span>
+            </div>
+            <!-- 文件信息 -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5 mb-0.5">
+                <span class="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
+                  :class="f.type === 'nas' ? 'bg-blue-900/60 text-blue-300' : 'bg-gray-700 text-gray-400'"
+                  x-text="f.type === 'nas' ? f.nas_name : '本地'"></span>
+                <p class="text-sm font-medium truncate group-hover:text-white transition-colors" x-text="f.name"></p>
+              </div>
+              <p class="text-xs text-gray-500" x-text="(f.size ? formatBytes(f.size) + ' · ' : '') + (f.transcribed ? '已分句' : '未分句')"></p>
+            </div>
+            <!-- 操作按钮 -->
+            <div class="flex gap-1.5 shrink-0">
+              <button x-show="f.type === 'local' && !f.transcribed"
+                @click="startTranscribe(f.name)"
+                class="text-xs bg-gray-700 hover:bg-blue-700 px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors">
+                <span x-show="transcribingFiles[f.name]" class="animate-spin inline-block w-3 h-3 border border-white border-t-transparent rounded-full"></span>
+                <span x-text="transcribingFiles[f.name] ? '分句中...' : '分句'"></span>
+              </button>
+              <button x-show="f.type === 'nas' && !f.transcribed"
+                @click="startNasTranscribe(parseInt(f.nas_idx), f.path)"
+                class="text-xs bg-gray-700 hover:bg-blue-700 px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors">
+                <span x-show="transcribingFiles[f.path]" class="animate-spin inline-block w-3 h-3 border border-white border-t-transparent rounded-full"></span>
+                <span x-text="transcribingFiles[f.path] ? '分句中...' : '分句'"></span>
+              </button>
+              <button @click="f.type === 'nas' ? openNasFile(f.nas_idx, f.path) : openFile(f.name)"
+                class="text-xs bg-blue-700 hover:bg-blue-600 px-2.5 py-1 rounded-full transition-colors">▶ 播放</button>
+              <button @click="f.type === 'local' ? deleteFile(f.name) : removeLibraryEntry(f)"
+                class="text-xs bg-gray-700 hover:bg-red-700 px-2.5 py-1 rounded-full transition-colors"
+                :title="f.type === 'local' ? '删除文件' : '从库中移除'">✕</button>
+            </div>
+          </div>
+        </template>
+        <p x-show="libraryItems.length === 0" class="text-sm text-gray-500 text-center py-10">暂无文件 — 上传本地文件或从 NAS 播放</p>
+      </div>
+    </div>
+
+    <!-- NAS WebDAV Tab -->
+    <div x-show="tab==='webdav'">
+
+      <!-- 选择 NAS -->
+      <div class="mb-3 flex gap-2">
+        <select x-model="wdSelectedNas" @change="wdItems=[]; wdPath='/'; wdPathStack=[]; wdError=''"
+          class="w-36 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+          <option value="">-- 选择 NAS --</option>
+          <template x-for="(nas, i) in settings.nas_list" :key="i">
+            <option :value="i" x-text="nas.name || nas.url"></option>
+          </template>
+        </select>
+        <input x-model="wdPath" placeholder="路径 /" class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+        <button @click="loadWebdav()" :disabled="wdSelectedNas===''"
+          class="bg-blue-700 hover:bg-blue-600 disabled:opacity-50 px-4 py-2 rounded text-sm">浏览</button>
+      </div>
+
+      <div x-show="(settings.nas_list?.length ?? 0) === 0" class="text-sm text-gray-500 text-center py-6">
+        请先在「设置」页添加 NAS
+      </div>
+
+      <div x-show="wdError" class="text-sm text-red-400 mb-3" x-text="wdError"></div>
+
+      <!-- 后退栏 -->
+      <div x-show="wdPathStack.length > 0" class="flex items-center gap-2 mb-2">
+        <button @click="goBack()"
+          class="flex items-center gap-1 text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-full transition-colors">
+          ← 返回
+        </button>
+        <span class="text-xs text-gray-500 truncate flex-1" x-text="wdPath"></span>
+        <button @click="wdItems = [...wdItems].sort((a,b) => (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1))"
+          class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-full transition-colors">A→Z</button>
+        <button @click="wdItems = [...wdItems].sort((a,b) => (a.name.toLowerCase() > b.name.toLowerCase() ? -1 : 1))"
+          class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-full transition-colors">Z→A</button>
+      </div>
+
+      <div class="space-y-1">
+        <template x-for="item in wdItems" :key="item.path">
+          <div @click="item.is_dir ? enterDir(item.path) : null"
+            :class="item.is_dir ? 'cursor-pointer hover:bg-gray-700' : ''"
+            class="bg-gray-800 rounded-lg px-3 py-2.5 flex items-center justify-between transition-colors">
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+              <span class="shrink-0 text-base" x-text="item.is_dir ? '📁' : (isAudio(item.name) ? '🎵' : (isPdf(item.name) ? '📄' : '📎'))"></span>
+              <span class="text-sm truncate" x-text="item.name"></span>
+            </div>
+            <div class="flex gap-1.5 shrink-0 ml-2" @click.stop>
+              <button x-show="item.is_dir" @click="enterDir(item.path)"
+                class="text-xs bg-gray-700 hover:bg-gray-600 px-2.5 py-1 rounded-full">进入 →</button>
+              <template x-if="!item.is_dir && isAudio(item.name)">
+                <span class="flex gap-1.5">
+                  <button x-show="!libraryItems.some(f => f.type==='nas' && f.path===item.path)"
+                    @click="addNasToLibrary(parseInt(wdSelectedNas), item.path)"
+                    class="text-xs bg-gray-700 hover:bg-green-700 px-2.5 py-1 rounded-full transition-colors">+ 加入库</button>
+                  <span x-show="libraryItems.some(f => f.type==='nas' && f.path===item.path)"
+                    class="text-xs bg-green-800 text-green-300 px-2.5 py-1 rounded-full">✓ 已在库</span>
+                  <button x-show="!nasIsTranscribed(parseInt(wdSelectedNas), item.path)"
+                    @click="startNasTranscribe(parseInt(wdSelectedNas), item.path)"
+                    class="text-xs bg-gray-700 hover:bg-blue-700 px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors">
+                    <span x-show="transcribingFiles[item.path]" class="animate-spin inline-block w-3 h-3 border border-white border-t-transparent rounded-full"></span>
+                    <span x-text="transcribingFiles[item.path] ? '分句中...' : '分句'"></span>
+                  </button>
+                  <button @click="openNasFile(parseInt(wdSelectedNas), item.path)"
+                    class="text-xs bg-blue-700 hover:bg-blue-600 px-2.5 py-1 rounded-full">▶ 播放</button>
+                </span>
+              </template>
+              <button x-show="!item.is_dir && isPdf(item.name)" @click="openPdf(parseInt(wdSelectedNas), item.path)"
+                class="text-xs bg-gray-600 hover:bg-gray-500 px-2.5 py-1 rounded-full">📄 查看</button>
+              <span x-show="!item.is_dir && !isAudio(item.name) && !isPdf(item.name)" class="text-xs text-gray-600">-</span>
+            </div>
+          </div>
+        </template>
+        <p x-show="wdItems.length === 0 && !wdError && wdSelectedNas !== ''" class="text-sm text-gray-500 text-center py-6">点击「浏览」加载文件</p>
+      </div>
+    </div>
+
+    <!-- 设置 Tab -->
+    <div x-show="tab==='settings'" class="space-y-5">
+
+      <div class="bg-gray-800 rounded-xl p-4 space-y-4">
+        <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide">复读参数</h2>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs text-gray-400 block mb-1">最短句子时长（秒）</label>
+            <input type="number" x-model.number="settings.min_segment_duration" min="1" max="30" step="0.5"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 block mb-1">最长句子时长（秒）</label>
+            <input type="number" x-model.number="settings.max_segment_duration" min="3" max="60" step="0.5"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 block mb-1">每句重复次数</label>
+            <input type="number" x-model.number="settings.repeat_count" min="1" max="10"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 block mb-1">重复间停顿（秒）</label>
+            <input type="number" x-model.number="settings.pause_between_repeats" min="0" max="5" step="0.1"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 block mb-1">句子间停顿（秒）</label>
+            <input type="number" x-model.number="settings.pause_between_segments" min="0" max="10" step="0.1"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 block mb-1">合并短句阈值（秒）</label>
+            <input type="number" x-model.number="settings.merge_threshold" min="0.5" max="10" step="0.5"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs text-gray-400 block mb-1">Whisper 模型</label>
+          <select x-model="settings.whisper_model"
+            class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm">
+            <option value="tiny.en">tiny.en（最快，CPU 友好）</option>
+            <option value="base.en">base.en（推荐）</option>
+            <option value="small.en">small.en（更准，较慢）</option>
+            <option value="medium.en">medium.en（最准，很慢）</option>
+          </select>
+        </div>
+
+        <div class="flex gap-6 pt-1">
+          <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-300 select-none">
+            <input type="checkbox" x-model="settings.use_srt" class="accent-blue-500" />
+            有同名 SRT 时优先用 SRT 分句
+          </label>
+        </div>
+      </div>
+
+      <div class="bg-gray-800 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide">NAS 列表</h2>
+          <button @click="addNas()"
+            class="text-xs bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded">＋ 添加</button>
+        </div>
+
+        <div x-show="(settings.nas_list?.length ?? 0) === 0" class="text-xs text-gray-500 py-2">暂无 NAS，点击「添加」</div>
+
+        <!-- 下拉选择要编辑哪条 -->
+        <div x-show="(settings.nas_list?.length ?? 0) > 0" class="flex gap-2">
+          <select x-model.number="editingNasIdx"
+            class="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm">
+            <template x-for="(nas, i) in settings.nas_list" :key="i">
+              <option :value="i" x-text="nas.name || nas.url || `NAS ${i+1}`"></option>
+            </template>
+          </select>
+          <button @click="removeNas(editingNasIdx)"
+            class="text-xs bg-red-800 hover:bg-red-700 px-3 py-1 rounded">删除</button>
+        </div>
+
+        <!-- 编辑选中的 NAS -->
+        <template x-if="(settings.nas_list?.length ?? 0) > 0 && settings.nas_list[editingNasIdx]">
+          <div class="bg-gray-700 rounded-lg p-3 space-y-2">
+            <input type="text" x-model="settings.nas_list[editingNasIdx].name" placeholder="名称（如：家庭NAS）"
+              class="w-full bg-gray-600 border border-gray-500 rounded px-2 py-1 text-sm" />
+            <input type="text" x-model="settings.nas_list[editingNasIdx].url" placeholder="地址 http://192.168.1.x:5005"
+              class="w-full bg-gray-600 border border-gray-500 rounded px-2 py-1 text-sm" />
+            <div class="grid grid-cols-2 gap-2">
+              <input type="text" x-model="settings.nas_list[editingNasIdx].username" placeholder="用户名"
+                class="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-sm" />
+              <input type="password" x-model="settings.nas_list[editingNasIdx].password" placeholder="密码"
+                class="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-sm" />
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="text" x-model="settings.nas_list[editingNasIdx].root" placeholder="根目录 /"
+                class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-sm" />
+              <button @click="testNas(editingNasIdx)" :disabled="nasTestingIdx === editingNasIdx"
+                class="text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded disabled:opacity-60 flex items-center gap-1 shrink-0">
+                <span x-show="nasTestingIdx === editingNasIdx" class="animate-spin inline-block w-3 h-3 border border-white border-t-transparent rounded-full"></span>
+                <span x-text="nasTestingIdx === editingNasIdx ? '测试中' : '测试'"></span>
+              </button>
+            </div>
+            <p x-show="nasTestMsg[editingNasIdx]" class="text-xs"
+              :class="nasTestOk[editingNasIdx] ? 'text-green-400' : 'text-red-400'"
+              x-text="nasTestMsg[editingNasIdx]"></p>
+          </div>
+        </template>
+      </div>
+
+      <button @click="saveSettings()"
+        class="w-full bg-blue-600 hover:bg-blue-500 rounded-lg py-2.5 text-sm font-semibold">
+        保存设置
+      </button>
+      <p x-show="settingsSaved" class="text-center text-xs text-green-400">已保存 ✓</p>
+    </div>
+
+  </main>
+
+  <audio id="audio-player" x-ref="audio"></audio>
+  <script src="/static/player.js"></script>
+</body>
+</html>

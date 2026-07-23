@@ -1,0 +1,18 @@
+services:
+  listener:
+    build: /data/dev/Listener
+    container_name: listener
+    restart: always
+    ports:
+      - "19080:19080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /data/dev/Listener/data:/app/data
+      - /data/dev/Listener/core:/app/core
+      - /data/dev/Listener/api:/app/api
+      - /data/dev/Listener/frontend:/app/frontend
+      - /data/dev/Listener/main.py:/app/main.py
+      - /data/dev/Listener/models:/root/.cache/huggingface
+    environment:
+      - TZ=Asia/Shanghai
