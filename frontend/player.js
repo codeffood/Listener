@@ -446,24 +446,21 @@ function app() {
       this.playing = true;
 
       if (this._isMobile()) {
-        this._audio.muted = false;
         const token = ++this._seekToken;
-        this._log(`playFromSeg idx=${idx} repeat=${repeat} target=${targetTime.toFixed(3)} token=${token}`);
+        this._log(`playFromSeg idx=${idx} repeat=${repeat} target=${targetTime.toFixed(3)} token=${token} paused=${this._audio.paused}`);
         const onSeeked = () => {
           this._audio.removeEventListener('seeked', onSeeked);
-          if (token !== this._seekToken) { this._log(`seeked STALE token=${token} cur=${this._seekToken}`); return; }
-          this._log(`seeked OK → play pos=${this._audio.currentTime.toFixed(3)}`);
-          this._audio.play().then(() => {
-            this._attachTracker();
-          }).catch(e => {
-            this._log(`play() failed: ${e.message}, fallback mute`);
-            this._audio.muted = false;
-            this._attachTracker();
-          });
+          if (token !== this._seekToken) { this._log(`seeked STALE token=${token}`); return; }
+          this._audio.volume = 1;
+          this._log(`seeked OK → volume=1 pos=${this._audio.currentTime.toFixed(3)}`);
+          this._attachTracker();
         };
         this._audio.addEventListener('seeked', onSeeked);
-        this._audio.pause();
+        this._audio.volume = 0;
         this._audio.currentTime = targetTime;
+        if (this._audio.paused) {
+          this._audio.play().catch(e => this._log(`play failed: ${e.message}`));
+        }
       } else {
         this._seekAndPlay(targetTime, () => {
           this._audio.play();
@@ -498,8 +495,8 @@ function app() {
           fired = true;
           this._clearTrack();
           if (mobile) {
-            this._log(`stop → pause pos=${this._audio.currentTime.toFixed(3)}`);
-            this._audio.pause();
+            this._log(`stop → volume=0 pos=${this._audio.currentTime.toFixed(3)}`);
+            this._audio.volume = 0;
           } else {
             this._audio.pause();
           }
@@ -610,6 +607,7 @@ function app() {
     _pause() {
       this._seekToken++;
       this.playing = false;
+      this._audio.volume = 1;
       this._audio.muted = false;
       this._audio.pause();
       this._clearTrack();
