@@ -543,7 +543,7 @@ function app() {
         this._repeatTimer = setTimeout(() => {
           const nextIdx = this.currentSegIdx + 1;
           if (nextIdx < this.segments.length) {
-            const nextStart = Math.max(stoppedAt, this.segments[nextIdx].start);
+            const nextStart = this._isMobile() ? this.segments[nextIdx].start : Math.max(stoppedAt, this.segments[nextIdx].start);
             this._playFromSeg(nextIdx, 1, nextStart);
           } else {
             this.playing = false;
