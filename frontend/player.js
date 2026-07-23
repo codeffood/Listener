@@ -45,7 +45,6 @@ function app() {
     _trackHandler: null,
     _seekToken: 0,
     playMode: 'single',
-    _pendingAutoPlay: false,
 
     async init() {
       this._audio = document.getElementById('audio-player');
@@ -396,18 +395,6 @@ function app() {
       this._audio.currentTime = targetTime;
     },
 
-    _isMobile() {
-      return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || ('ontouchstart' in window);
-    },
-
-    debugLogs: [],
-    _log(msg) {
-      const t = this._audio ? this._audio.currentTime.toFixed(3) : '?';
-      const entry = `[${t}] ${msg}`;
-      this.debugLogs.unshift(entry);
-      if (this.debugLogs.length > 50) this.debugLogs.pop();
-    },
-
     // ── 复读模式 ──────────────────────────────────────────
     toggleRepeatMode() {
       this.repeatMode = !this.repeatMode;
@@ -445,28 +432,10 @@ function app() {
       this.currentRepeat = repeat;
       this.playing = true;
 
-      if (this._isMobile()) {
-        const token = ++this._seekToken;
-        this._log(`playFromSeg idx=${idx} repeat=${repeat} target=${targetTime.toFixed(3)} token=${token} paused=${this._audio.paused}`);
-        const onSeeked = () => {
-          this._audio.removeEventListener('seeked', onSeeked);
-          if (token !== this._seekToken) { this._log(`seeked STALE token=${token}`); return; }
-          this._audio.volume = 1;
-          this._log(`seeked OK → volume=1 pos=${this._audio.currentTime.toFixed(3)}`);
-          this._attachTracker();
-        };
-        this._audio.addEventListener('seeked', onSeeked);
-        this._audio.volume = 0;
-        this._audio.currentTime = targetTime;
-        if (this._audio.paused) {
-          this._audio.play().catch(e => this._log(`play failed: ${e.message}`));
-        }
-      } else {
-        this._seekAndPlay(targetTime, () => {
-          this._audio.play();
-          this._attachTracker();
-        });
-      }
+      this._seekAndPlay(targetTime, () => {
+        this._audio.play();
+        this._attachTracker();
+      });
 
       if (this.autoScroll) {
         this.$nextTick(() => {
@@ -488,18 +457,11 @@ function app() {
         const stopAt = seg.end - 0.03;
         let fired = false;
         let started = false;
-        const mobile = this._isMobile();
-        this._log(`attachTracker seg=${this.currentSegIdx} start=${seg.start.toFixed(3)} stopAt=${stopAt.toFixed(3)} mobile=${mobile}`);
         const stop = () => {
           if (fired || token !== this._seekToken) return;
           fired = true;
           this._clearTrack();
-          if (mobile) {
-            this._log(`stop → volume=0 pos=${this._audio.currentTime.toFixed(3)}`);
-            this._audio.volume = 0;
-          } else {
-            this._audio.pause();
-          }
+          this._audio.pause();
           this._scheduleRepeatNext(this._audio.currentTime);
         };
 
@@ -549,7 +511,6 @@ function app() {
     _scheduleRepeatNext(stoppedAt) {
       const maxRepeat = parseInt(this.repeatCount) || 0;
       const infinite = maxRepeat === 0;
-      this._log(`scheduleRepeatNext seg=${this.currentSegIdx} repeat=${this.currentRepeat}/${maxRepeat} stoppedAt=${stoppedAt.toFixed(3)}`);
 
       if (infinite || this.currentRepeat < maxRepeat) {
         const seg = this.segments[this.currentSegIdx];
@@ -559,7 +520,7 @@ function app() {
       } else {
         const nextIdx = this.currentSegIdx + 1;
         if (nextIdx < this.segments.length) {
-          const nextStart = this._isMobile() ? this.segments[nextIdx].start : Math.max(stoppedAt, this.segments[nextIdx].start);
+          const nextStart = Math.max(stoppedAt, this.segments[nextIdx].start);
           this._repeatTimer = setTimeout(() => {
             this._playFromSeg(nextIdx, 1, nextStart);
           }, this.settings.pause_between_segments * 1000);

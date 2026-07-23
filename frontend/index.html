@@ -476,25 +476,6 @@
       <p x-show="settingsSaved" class="text-center text-xs text-green-400">已保存 ✓</p>
     </div>
 
-    <!-- Debug 日志面板 -->
-    <div class="mt-4 bg-gray-900 rounded-xl p-3">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-xs font-mono text-gray-400">Debug Log</span>
-        <div class="flex gap-2">
-          <button @click="(() => { const t = document.createElement('textarea'); t.value = debugLogs.join('\n'); t.style.position='fixed'; t.style.opacity='0'; document.body.appendChild(t); t.focus(); t.select(); try { document.execCommand('copy'); } catch(e) {} document.body.removeChild(t); })()" class="text-xs text-gray-500 hover:text-blue-400">复制</button>
-          <button @click="debugLogs=[]" class="text-xs text-gray-500 hover:text-red-400">清空</button>
-        </div>
-      </div>
-      <div class="space-y-0.5 max-h-48 overflow-y-auto font-mono">
-        <template x-for="(l, i) in debugLogs" :key="i">
-          <div class="text-xs text-green-400 whitespace-pre-wrap" x-text="l"></div>
-        </template>
-        <div x-show="debugLogs.length===0" class="text-xs text-gray-600">暂无日志</div>
-      </div>
-    </div>
-
-  </main>
-
   <audio id="audio-player" x-ref="audio"></audio>
   <script src="/static/player.js"></script>
 </body>
