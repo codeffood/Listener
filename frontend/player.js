@@ -546,23 +546,25 @@ function app() {
       this._log(`scheduleRepeatNext seg=${this.currentSegIdx} repeat=${this.currentRepeat}/${maxRepeat} stoppedAt=${stoppedAt.toFixed(3)}`);
 
       if (infinite || this.currentRepeat < maxRepeat) {
-        // 还有次数（或无限），停顿后重播当前句
+        const seg = this.segments[this.currentSegIdx];
+        if (this._isMobile()) this._audio.currentTime = seg.start;
         this._repeatTimer = setTimeout(() => {
-          const seg = this.segments[this.currentSegIdx];
           this._playFromSeg(this.currentSegIdx, this.currentRepeat + 1, seg.start);
         }, this.settings.pause_between_repeats * 1000);
       } else {
-        // 重复完毕，进入下一句
-        this._repeatTimer = setTimeout(() => {
-          const nextIdx = this.currentSegIdx + 1;
-          if (nextIdx < this.segments.length) {
-            const nextStart = this._isMobile() ? this.segments[nextIdx].start : Math.max(stoppedAt, this.segments[nextIdx].start);
+        const nextIdx = this.currentSegIdx + 1;
+        if (nextIdx < this.segments.length) {
+          const nextStart = this._isMobile() ? this.segments[nextIdx].start : Math.max(stoppedAt, this.segments[nextIdx].start);
+          if (this._isMobile()) this._audio.currentTime = nextStart;
+          this._repeatTimer = setTimeout(() => {
             this._playFromSeg(nextIdx, 1, nextStart);
-          } else {
+          }, this.settings.pause_between_segments * 1000);
+        } else {
+          this._repeatTimer = setTimeout(() => {
             this.playing = false;
             this._onTrackEnded();
-          }
-        }, this.settings.pause_between_segments * 1000);
+          }, this.settings.pause_between_segments * 1000);
+        }
       }
     },
 
