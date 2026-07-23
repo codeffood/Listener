@@ -395,6 +395,10 @@ function app() {
       this._audio.currentTime = targetTime;
     },
 
+    _isMobile() {
+      return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || ('ontouchstart' in window);
+    },
+
     // ── 复读模式 ──────────────────────────────────────────
     toggleRepeatMode() {
       this.repeatMode = !this.repeatMode;
@@ -495,7 +499,10 @@ function app() {
 
     // 普通模式：只更新高亮，音频不停
     _trackNormal() {
-      const t = this._audio.currentTime;
+      // Mobile browsers report currentTime ahead of actual playback due to hardware decode buffering.
+      // Subtract a fixed offset so the highlight matches what the user hears.
+      const offset = this._isMobile() ? 0.4 : 0;
+      const t = this._audio.currentTime - offset;
       const idx = this.segments.findIndex(s => t >= s.start && t < s.end);
       if (idx >= 0 && idx !== this.currentSegIdx) {
         this.currentSegIdx = idx;
