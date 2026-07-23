@@ -400,6 +400,14 @@ function app() {
       return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || ('ontouchstart' in window);
     },
 
+    debugLogs: [],
+    _log(msg) {
+      const t = this._audio ? this._audio.currentTime.toFixed(3) : '?';
+      const entry = `[${t}] ${msg}`;
+      this.debugLogs.unshift(entry);
+      if (this.debugLogs.length > 50) this.debugLogs.pop();
+    },
+
     // ── 复读模式 ──────────────────────────────────────────
     toggleRepeatMode() {
       this.repeatMode = !this.repeatMode;
@@ -440,10 +448,12 @@ function app() {
       if (this._isMobile()) {
         this._audio.muted = true;
         const token = ++this._seekToken;
+        this._log(`playFromSeg idx=${idx} repeat=${repeat} target=${targetTime.toFixed(3)} token=${token}`);
         const onSeeked = () => {
           this._audio.removeEventListener('seeked', onSeeked);
-          if (token !== this._seekToken) return;
+          if (token !== this._seekToken) { this._log(`seeked STALE token=${token} cur=${this._seekToken}`); return; }
           this._audio.muted = false;
+          this._log(`seeked OK → unmute pos=${this._audio.currentTime.toFixed(3)}`);
           this._attachTracker();
         };
         this._audio.addEventListener('seeked', onSeeked);
@@ -475,11 +485,13 @@ function app() {
         const stopAt = seg.end - 0.03;
         let fired = false;
         const mobile = this._isMobile();
+        this._log(`attachTracker seg=${this.currentSegIdx} start=${seg.start.toFixed(3)} stopAt=${stopAt.toFixed(3)} mobile=${mobile}`);
         const stop = () => {
           if (fired || token !== this._seekToken) return;
           fired = true;
           this._clearTrack();
           if (mobile) {
+            this._log(`stop → mute pos=${this._audio.currentTime.toFixed(3)}`);
             this._audio.muted = true;
           } else {
             this._audio.pause();
@@ -531,6 +543,7 @@ function app() {
     _scheduleRepeatNext(stoppedAt) {
       const maxRepeat = parseInt(this.repeatCount) || 0;
       const infinite = maxRepeat === 0;
+      this._log(`scheduleRepeatNext seg=${this.currentSegIdx} repeat=${this.currentRepeat}/${maxRepeat} stoppedAt=${stoppedAt.toFixed(3)}`);
 
       if (infinite || this.currentRepeat < maxRepeat) {
         // 还有次数（或无限），停顿后重播当前句
