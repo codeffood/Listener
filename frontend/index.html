@@ -480,7 +480,10 @@
     <div class="mt-4 bg-gray-900 rounded-xl p-3">
       <div class="flex items-center justify-between mb-2">
         <span class="text-xs font-mono text-gray-400">Debug Log</span>
-        <button @click="debugLogs=[]" class="text-xs text-gray-500 hover:text-red-400">清空</button>
+        <div class="flex gap-2">
+          <button @click="navigator.clipboard.writeText(debugLogs.join('\n'))" class="text-xs text-gray-500 hover:text-blue-400">复制</button>
+          <button @click="debugLogs=[]" class="text-xs text-gray-500 hover:text-red-400">清空</button>
+        </div>
       </div>
       <div class="space-y-0.5 max-h-48 overflow-y-auto font-mono">
         <template x-for="(l, i) in debugLogs" :key="i">
