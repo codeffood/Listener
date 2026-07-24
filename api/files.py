@@ -184,6 +184,16 @@ def clear_transcribe_cache(filename: str):
 def transcribe_file(filename: str, background_tasks: BackgroundTasks, req: TranscribeRequest = TranscribeRequest()):
     path = UPLOAD_DIR / filename
     if not path.exists():
+        # file may be archived — look for it and its cache
+        for sub in (ARCHIVE_DIR.iterdir() if ARCHIVE_DIR.exists() else []):
+            candidate = sub / filename
+            if candidate.exists():
+                cached = _load_cache(candidate)
+                if cached is not None:
+                    return {"status": "cached", "segments": cached}
+                # archived but no cache — transcribe in place
+                background_tasks.add_task(_do_transcribe, candidate, req.split_by_punctuation)
+                return {"status": "processing"}
         raise HTTPException(404, "文件不存在")
 
     cached = _load_cache(path)
@@ -197,6 +207,13 @@ def transcribe_file(filename: str, background_tasks: BackgroundTasks, req: Trans
 @router.get("/transcribe/{filename}/status")
 def transcribe_status(filename: str):
     path = UPLOAD_DIR / filename
+    if not path.exists():
+        for sub in (ARCHIVE_DIR.iterdir() if ARCHIVE_DIR.exists() else []):
+            candidate = sub / filename
+            if candidate.exists():
+                path = candidate
+                break
+
     cache = _cache_path(path)
     error_path = cache.with_suffix(".error")
 
