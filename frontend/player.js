@@ -46,6 +46,8 @@ function app() {
     _trackHandler: null,
     _seekToken: 0,
     playMode: 'single',
+    libraryFilter: 'all', // 'all' | 'transcribed' | 'untranscribed'
+    cleanupResult: null,
 
     // ── 归档 ──────────────────────────────────────────────
     archiveFolders: [],
@@ -895,6 +897,19 @@ function app() {
 
 
     // ── 工具函数 ──────────────────────────────────────────
+    get filteredLibraryItems() {
+      if (this.libraryFilter === 'transcribed')   return this.libraryItems.filter(f => f.transcribed);
+      if (this.libraryFilter === 'untranscribed') return this.libraryItems.filter(f => !f.transcribed);
+      return this.libraryItems;
+    },
+
+    async cleanupCache() {
+      const r = await fetch('/api/files/cache/cleanup', { method: 'POST' });
+      this.cleanupResult = await r.json();
+      await this.loadLibrary();
+      setTimeout(() => this.cleanupResult = null, 5000);
+    },
+
     formatTime(seconds) {
       if (!seconds || isNaN(seconds)) return '0:00';
       const m = Math.floor(seconds / 60);

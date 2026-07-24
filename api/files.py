@@ -244,6 +244,52 @@ def transcribe_status(filename: str):
     return {"status": "processing"}
 
 
+@router.post("/cache/cleanup")
+def cleanup_cache():
+    """Delete orphaned and corrupt cache files. Returns counts."""
+    deleted_orphan = 0
+    deleted_corrupt = 0
+
+    # Collect all known audio file names (uploads + archive)
+    audio_exts = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac"}
+    known = set()
+    for d in [UPLOAD_DIR] + (list(ARCHIVE_DIR.rglob("*")) if ARCHIVE_DIR.exists() else []):
+        p = Path(d) if isinstance(d, str) else d
+        if p.is_file() and p.suffix.lower() in audio_exts:
+            known.add(p.stem)
+
+    # Check same-dir JSON caches in uploads
+    for f in UPLOAD_DIR.iterdir():
+        if f.suffix == ".json":
+            try:
+                with open(f, "r", encoding="utf-8") as fh:
+                    json.load(fh)
+                # Valid JSON — check if matching audio exists
+                if f.stem not in known:
+                    f.unlink()
+                    deleted_orphan += 1
+            except (json.JSONDecodeError, OSError):
+                f.unlink(missing_ok=True)
+                deleted_corrupt += 1
+        elif f.suffix == ".error":
+            if f.stem not in known:
+                f.unlink(missing_ok=True)
+                deleted_orphan += 1
+
+    # Check legacy MD5 cache dir
+    if LEGACY_CACHE_DIR.exists():
+        for f in LEGACY_CACHE_DIR.iterdir():
+            if f.suffix == ".json":
+                try:
+                    with open(f, "r", encoding="utf-8") as fh:
+                        json.load(fh)
+                except (json.JSONDecodeError, OSError):
+                    f.unlink(missing_ok=True)
+                    deleted_corrupt += 1
+
+    return {"deleted_orphan": deleted_orphan, "deleted_corrupt": deleted_corrupt}
+
+
 def _do_transcribe(audio_path: Path, split_by_punctuation: bool = False):
     cache = _cache_path(audio_path)
     error_path = cache.with_suffix(".error")

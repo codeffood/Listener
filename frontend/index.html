@@ -229,13 +229,24 @@
         </button>
       </div>
 
-      <!-- 全部分句 + 排序 -->
-      <div class="mb-3 flex justify-between items-center">
+      <!-- 筛选 + 排序 + 全部分句 -->
+      <div class="mb-3 flex flex-wrap gap-1.5 items-center justify-between">
         <div class="flex gap-1.5">
+          <!-- 筛选 -->
+          <button @click="libraryFilter='all'"
+            :class="libraryFilter==='all' ? 'bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'"
+            class="text-xs px-3 py-1.5 rounded-full transition-colors">全部</button>
+          <button @click="libraryFilter='transcribed'"
+            :class="libraryFilter==='transcribed' ? 'bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'"
+            class="text-xs px-3 py-1.5 rounded-full transition-colors">已分句</button>
+          <button @click="libraryFilter='untranscribed'"
+            :class="libraryFilter==='untranscribed' ? 'bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'"
+            class="text-xs px-3 py-1.5 rounded-full transition-colors">未分句</button>
+          <!-- 排序 -->
           <button @click="libraryItems = [...libraryItems].sort((a,b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1)"
-            class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-full transition-colors">A→Z</button>
+            class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1.5 rounded-full transition-colors">A→Z</button>
           <button @click="libraryItems = [...libraryItems].sort((a,b) => a.name.toLowerCase() > b.name.toLowerCase() ? -1 : 1)"
-            class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-full transition-colors">Z→A</button>
+            class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1.5 rounded-full transition-colors">Z→A</button>
         </div>
         <button @click="transcribeAll()"
           x-show="libraryItems.some(f => !f.transcribed)"
@@ -246,7 +257,7 @@
 
       <!-- 统一库列表 -->
       <div class="space-y-1.5">
-        <template x-for="f in libraryItems" :key="f.type === 'nas' ? f.path : f.name">
+        <template x-for="f in filteredLibraryItems" :key="f.type === 'nas' ? f.path : f.name">
           <div
             class="bg-gray-800 hover:bg-gray-700 rounded-lg px-4 py-3 flex items-center gap-3 group transition-colors"
             :class="currentFile === f.name ? 'ring-1 ring-blue-500' : ''">
@@ -549,6 +560,13 @@
         保存设置
       </button>
       <p x-show="settingsSaved" class="text-center text-xs text-green-400">已保存 ✓</p>
+
+      <button @click="cleanupCache()"
+        class="w-full bg-gray-700 hover:bg-red-800 rounded-lg py-2.5 text-sm font-semibold mt-2">
+        🗑 清理缓存
+      </button>
+      <p x-show="cleanupResult" class="text-center text-xs text-gray-400 mt-1"
+        x-text="cleanupResult ? `已清理：${cleanupResult.deleted_orphan} 个孤立文件，${cleanupResult.deleted_corrupt} 个损坏文件` : ''"></p>
     </div>
 
   </main>
