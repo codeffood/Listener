@@ -176,8 +176,11 @@ def nas_transcribe(req: NasFileRequest, background_tasks: BackgroundTasks):
 
     # Local cache hit
     if cache.exists():
-        with open(cache, "r", encoding="utf-8") as f:
-            return {"status": "cached", "segments": json.load(f)}
+        try:
+            with open(cache, "r", encoding="utf-8") as f:
+                return {"status": "cached", "segments": json.load(f)}
+        except (json.JSONDecodeError, OSError):
+            cache.unlink(missing_ok=True)
 
     # Already running?
     if job_key in _nas_jobs and _nas_jobs[job_key]["status"] == "processing":
@@ -194,8 +197,11 @@ def nas_transcribe_status(req: NasFileRequest):
     cache = _nas_cache_path(req.nas_idx, req.path)
 
     if cache.exists():
-        with open(cache, "r", encoding="utf-8") as f:
-            return {"status": "done", "segments": json.load(f)}
+        try:
+            with open(cache, "r", encoding="utf-8") as f:
+                return {"status": "done", "segments": json.load(f)}
+        except (json.JSONDecodeError, OSError):
+            cache.unlink(missing_ok=True)
     if job_key not in _nas_jobs:
         return {"status": "not_started"}
     job = _nas_jobs[job_key]

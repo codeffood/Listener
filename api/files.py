@@ -43,15 +43,20 @@ def _load_cache(audio_path: Path):
     """Load cache, preferring same-dir JSON; fall back to old MD5 cache."""
     new = _cache_path(audio_path)
     if new.exists():
-        with open(new, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(new, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            new.unlink(missing_ok=True)  # corrupt file, delete and re-transcribe
     old = _legacy_cache_path(audio_path)
     if old.exists():
-        with open(old, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        # migrate: write to new location
-        new.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        return data
+        try:
+            with open(old, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            new.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            return data
+        except (json.JSONDecodeError, OSError):
+            old.unlink(missing_ok=True)
     return None
 
 
