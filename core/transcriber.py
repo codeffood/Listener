@@ -55,6 +55,8 @@ def transcribe(
         audio_path,
         word_timestamps=True,
         language="en",
+        beam_size=5,
+        condition_on_previous_text=False,
         vad_filter=True,
         vad_parameters={"min_silence_duration_ms": 300},
     )
@@ -259,14 +261,18 @@ def _merge_and_split(
         else:
             result.append(seg)
 
-    END_PADDING = 0.20  # 200ms tail padding to avoid clipping trailing consonants
-    MIN_PADDING = 0.08  # always keep at least 80ms regardless of next sentence start
+    # Fix Whisper timestamp overlaps before adding padding
+    for i in range(len(result) - 1):
+        if result[i]["end"] > result[i + 1]["start"]:
+            result[i]["end"] = result[i + 1]["start"]
+
+    END_PADDING = 0.15
     for i, seg in enumerate(result):
         seg["id"] = i
         next_start = result[i + 1]["start"] if i + 1 < len(result) else None
         padded_end = seg["end"] + END_PADDING
         if next_start is not None:
-            padded_end = min(padded_end, max(seg["end"] + MIN_PADDING, next_start))
+            padded_end = min(padded_end, next_start)
         seg["end"] = round(padded_end, 3)
         seg.pop("words", None)
 
