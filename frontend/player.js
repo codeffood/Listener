@@ -251,7 +251,10 @@ function app() {
     },
 
     async startTranscribe(filename) {
-      console.log('startTranscribe', filename);
+      const item = this.libraryItems.find(f => f.name === filename);
+      if (item?.transcribed) {
+        await fetch(`/api/files/transcribe/${encodeURIComponent(filename)}/clear`, { method: 'DELETE' });
+      }
       this._enqueueTranscribe({ type: 'local', filename });
     },
 
@@ -272,9 +275,16 @@ function app() {
     },
 
     async startNasTranscribe(nasIdx, remotePath) {
-      console.log('startNasTranscribe', nasIdx, remotePath);
       if (!this.libraryItems.some(f => f.type === 'nas' && f.path === remotePath)) {
         await this.addNasToLibrary(nasIdx, remotePath);
+      }
+      const item = this.libraryItems.find(f => f.type === 'nas' && f.path === remotePath);
+      if (item?.transcribed) {
+        await fetch('/api/webdav/nas/transcribe/clear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nas_idx: nasIdx, path: remotePath }),
+        });
       }
       this._enqueueTranscribe({ type: 'nas', nasIdx, path: remotePath });
     },
