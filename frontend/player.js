@@ -311,7 +311,7 @@ function app() {
               body: JSON.stringify({ nas_idx: nasIdx, path: remotePath }),
             });
             const d = await r.json();
-            if (d.status === 'done' || d.status === 'error') {
+            if (d.status === 'done' || d.status === 'error' || d.status === 'not_started') {
               clearInterval(poll);
               this.transcribingFiles = { ...this.transcribingFiles, [remotePath]: false };
               await this.loadLibrary();
