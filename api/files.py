@@ -183,11 +183,17 @@ def delete_file(filename: str):
     path = UPLOAD_DIR / filename
     if not path.exists():
         raise HTTPException(404, "文件不存在")
+    stem = Path(filename).stem
     path.unlink()
+    # Remove co-located cache and legacy MD5 cache
     for p in [_cache_path(path), _legacy_cache_path(path),
               _cache_path(path).with_suffix(".error"), _legacy_cache_path(path).with_suffix(".error")]:
         if p.exists():
             p.unlink()
+    # Also clean up any stem-named JSON left in uploads dir (edge cases)
+    for p in UPLOAD_DIR.glob(f"{stem}.*"):
+        if p.suffix in (".json", ".error"):
+            p.unlink(missing_ok=True)
     # Remove from library
     try:
         from api.library import remove_entry, RemoveRequest
