@@ -634,7 +634,7 @@ function app() {
       } else {
         const nextIdx = this.currentSegIdx + 1;
         if (nextIdx < this.segments.length) {
-          const nextStart = Math.max(stoppedAt, this.segments[nextIdx].start);
+          const nextStart = this.segments[nextIdx].start;
           this._repeatTimer = setTimeout(() => {
             this._playFromSeg(nextIdx, 1, nextStart);
           }, this.settings.pause_between_segments * 1000);
