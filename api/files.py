@@ -55,8 +55,32 @@ def _load_cache(audio_path: Path):
     return None
 
 
-@router.get("")
-def list_local_files():
+def _find_in_archive(filename: str) -> Path | None:
+    """Find a file by exact name anywhere in the archive directory (glob-safe)."""
+    if not ARCHIVE_DIR.exists():
+        return None
+    for p in ARCHIVE_DIR.rglob("*"):
+        if p.is_file() and p.name == filename:
+            return p
+    return None
+
+
+def _load_cache_with_fallback(audio_path: Path, filename: str):
+    """Load cache for a file, also checking legacy cache keyed from original upload path."""
+    cached = _load_cache(audio_path)
+    if cached is not None:
+        return cached
+    # If the file was archived, the legacy MD5 cache was computed from the original upload path.
+    # Try that path even though the audio file no longer lives there.
+    original_path = UPLOAD_DIR / filename
+    if audio_path != original_path:
+        cached = _load_cache(original_path)
+        if cached is not None:
+            # migrate: write cache next to archived audio so future loads are fast
+            _cache_path(audio_path).write_text(
+                json.dumps(cached, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+    return cached
     files = []
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     for f in UPLOAD_DIR.iterdir():
@@ -89,10 +113,10 @@ async def upload_file(file: UploadFile = File(...)):
 @router.get("/audio/{filename}")
 def serve_audio(filename: str, request: Request):
     path = UPLOAD_DIR / filename
-    if not path.exists() and ARCHIVE_DIR.exists():
-        matches = list(ARCHIVE_DIR.rglob(filename))
-        if matches:
-            path = matches[0]
+    if not path.exists():
+        found = _find_in_archive(filename)
+        if found:
+            path = found
     if not path.exists():
         raise HTTPException(404, "文件不存在")
 
@@ -180,14 +204,14 @@ def clear_transcribe_cache(filename: str):
 @router.post("/transcribe/{filename}")
 def transcribe_file(filename: str, background_tasks: BackgroundTasks, req: TranscribeRequest = TranscribeRequest()):
     path = UPLOAD_DIR / filename
-    if not path.exists() and ARCHIVE_DIR.exists():
-        matches = list(ARCHIVE_DIR.rglob(filename))
-        if matches:
-            path = matches[0]
+    if not path.exists():
+        found = _find_in_archive(filename)
+        if found:
+            path = found
     if not path.exists():
         raise HTTPException(404, "文件不存在")
 
-    cached = _load_cache(path)
+    cached = _load_cache_with_fallback(path, filename)
     if cached is not None:
         return {"status": "cached", "segments": cached}
 
@@ -198,15 +222,15 @@ def transcribe_file(filename: str, background_tasks: BackgroundTasks, req: Trans
 @router.get("/transcribe/{filename}/status")
 def transcribe_status(filename: str):
     path = UPLOAD_DIR / filename
-    if not path.exists() and ARCHIVE_DIR.exists():
-        matches = list(ARCHIVE_DIR.rglob(filename))
-        if matches:
-            path = matches[0]
+    if not path.exists():
+        found = _find_in_archive(filename)
+        if found:
+            path = found
 
     cache = _cache_path(path)
     error_path = cache.with_suffix(".error")
 
-    cached = _load_cache(path)
+    cached = _load_cache_with_fallback(path, filename)
     if cached is not None:
         return {"status": "done", "segments": cached}
     if error_path.exists():
