@@ -588,10 +588,10 @@ function app() {
         const seg = this.segments[this.currentSegIdx];
         if (!seg) return;
 
-        const stopAt = seg.end;
+        // Stop 30ms before seg.end to absorb execution delay.
+        // seg.end already has 150ms padding, so last word is still fully audible.
+        const stopAt = seg.end - 0.03;
         let fired = false;
-        const handle = { timerId: null, onTimeUpdate: null };
-
         const stop = () => {
           if (fired || token !== this._seekToken) return;
           fired = true;
@@ -600,17 +600,15 @@ function app() {
           this._scheduleRepeatNext(this._audio.currentTime);
         };
 
-        handle.onTimeUpdate = () => {
-          const t = this._audio.currentTime;
-          // Defer timer until audio is actually playing near seg.start (absorbs seek/buffer delay)
-          if (handle.timerId === null && t >= seg.start - 0.5 && t <= stopAt) {
-            handle.timerId = setTimeout(stop, Math.max(0, (stopAt - t) * 1000));
-          }
-          if (t >= stopAt) stop();
-        };
+        const delay = Math.max(0, (stopAt - this._audio.currentTime) * 1000);
+        const timerId = setTimeout(stop, delay);
 
-        this._audio.addEventListener('timeupdate', handle.onTimeUpdate);
-        this._trackHandler = handle;
+        const onTimeUpdate = () => {
+          if (this._audio.currentTime >= stopAt) stop();
+        };
+        this._audio.addEventListener('timeupdate', onTimeUpdate);
+
+        this._trackHandler = { timerId, onTimeUpdate };
       } else {
         this._trackHandler = () => this._trackNormal();
         this._audio.addEventListener('timeupdate', this._trackHandler);
@@ -619,8 +617,8 @@ function app() {
 
     _clearTrack() {
       if (this._trackHandler === null) return;
-      if (typeof this._trackHandler === 'object' && 'onTimeUpdate' in this._trackHandler) {
-        if (this._trackHandler.timerId !== null) clearTimeout(this._trackHandler.timerId);
+      if (typeof this._trackHandler === 'object' && 'timerId' in this._trackHandler) {
+        clearTimeout(this._trackHandler.timerId);
         this._audio.removeEventListener('timeupdate', this._trackHandler.onTimeUpdate);
       } else {
         this._audio.removeEventListener('timeupdate', this._trackHandler);
@@ -655,7 +653,7 @@ function app() {
       } else {
         const nextIdx = this.currentSegIdx + 1;
         if (nextIdx < this.segments.length) {
-          const nextStart = this.segments[nextIdx].start;
+          const nextStart = Math.max(stoppedAt, this.segments[nextIdx].start);
           this._repeatTimer = setTimeout(() => {
             this._playFromSeg(nextIdx, 1, nextStart);
           }, this.settings.pause_between_segments * 1000);
