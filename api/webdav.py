@@ -115,7 +115,9 @@ def stream_nas_audio(nas_idx: int, path: str, request: Request):
     # Determine content-type from extension
     AUDIO_MIME = {
         ".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4",
-        ".flac": "audio/flac", ".ogg": "audio/ogg", ".aac": "audio/aac",
+        ".mp4": "video/mp4", ".flac": "audio/flac", ".ogg": "audio/ogg",
+        ".aac": "audio/aac", ".mkv": "video/x-matroska", ".avi": "video/x-msvideo",
+        ".mov": "video/quicktime", ".webm": "video/webm",
     }
     ext = "." + path.rsplit(".", 1)[-1].lower() if "." in path.split("/")[-1] else ""
     mime = AUDIO_MIME.get(ext, "audio/mpeg")

@@ -883,7 +883,7 @@ function app() {
     },
 
     isAudio(name) {
-      return /\.(mp3|wav|m4a|mp4|flac|ogg|aac)$/i.test(name);
+      return /\.(mp3|wav|m4a|mp4|flac|ogg|aac|mkv|avi|mov|webm)$/i.test(name);
     },
 
     isPdf(name) {

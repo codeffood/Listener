@@ -63,7 +63,7 @@ def list_folders():
 
 # ── browse one level ──────────────────────────────────────────────────────────
 
-AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac"}
+AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac", ".mkv", ".avi", ".mov", ".webm"}
 
 @router.get("/browse")
 def browse(path: str = ""):

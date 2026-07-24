@@ -217,11 +217,11 @@
     <div x-show="tab==='files'">
       <!-- 上传区 -->
       <div class="mb-4">
-        <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.mp4,.flac,.ogg,.aac" class="hidden" @change="uploadFile($event)" />
+        <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.mp4,.flac,.ogg,.aac,.mkv,.avi,.mov,.webm" class="hidden" @change="uploadFile($event)" />
         <button @click="document.getElementById('file-input').click()"
           :disabled="uploading"
           class="w-full border-2 border-dashed border-gray-700 hover:border-blue-500 rounded-lg px-4 py-5 text-sm text-gray-400 hover:text-blue-400 transition-colors disabled:opacity-50">
-          <span x-show="!uploading">＋ 点击上传本地音频文件（mp3 / mp4 / wav / m4a / flac）</span>
+          <span x-show="!uploading">＋ 点击上传本地音频/视频文件（mp3 / mp4 / mkv / avi / mov / m4a / flac 等）</span>
           <span x-show="uploading" class="flex items-center justify-center gap-2">
             <span class="animate-spin inline-block w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full"></span>
             上传中...

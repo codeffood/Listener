@@ -22,10 +22,14 @@ AUDIO_MIME = {
     ".mp3": "audio/mpeg",
     ".wav": "audio/wav",
     ".m4a": "audio/mp4",
-    ".mp4": "audio/mp4",
+    ".mp4": "video/mp4",
     ".flac": "audio/flac",
     ".ogg": "audio/ogg",
     ".aac": "audio/aac",
+    ".mkv": "video/x-matroska",
+    ".avi": "video/x-msvideo",
+    ".mov": "video/quicktime",
+    ".webm": "video/webm",
 }
 
 
@@ -89,7 +93,7 @@ def _load_cache_with_fallback(audio_path: Path, filename: str):
     files = []
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     for f in UPLOAD_DIR.iterdir():
-        if f.suffix.lower() in (".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac"):
+        if f.suffix.lower() in (".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac", ".mkv", ".avi", ".mov", ".webm"):
             files.append({
                 "name": f.name,
                 "size": f.stat().st_size,
@@ -101,7 +105,7 @@ def _load_cache_with_fallback(audio_path: Path, filename: str):
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    allowed = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac"}
+    allowed = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac", ".mkv", ".avi", ".mov", ".webm"}
     ext = Path(file.filename).suffix.lower()
     if ext not in allowed:
         raise HTTPException(400, f"不支持的格式: {ext}")
@@ -251,7 +255,7 @@ def cleanup_cache():
     deleted_corrupt = 0
 
     # Collect all known audio file names (uploads + archive)
-    audio_exts = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac"}
+    audio_exts = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac", ".mkv", ".avi", ".mov", ".webm"}
     known = set()
     for d in [UPLOAD_DIR] + (list(ARCHIVE_DIR.rglob("*")) if ARCHIVE_DIR.exists() else []):
         p = Path(d) if isinstance(d, str) else d

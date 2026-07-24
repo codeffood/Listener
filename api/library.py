@@ -69,7 +69,7 @@ def sync_local_files():
     # Add new local files
     changed = False
     for f in UPLOAD_DIR.iterdir():
-        if f.suffix.lower() in (".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac"):
+        if f.suffix.lower() in (".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac", ".mkv", ".avi", ".mov", ".webm"):
             if f.name not in local_names:
                 entries.append({"type": "local", "name": f.name, "size": f.stat().st_size})
                 changed = True
