@@ -588,10 +588,10 @@ function app() {
         const seg = this.segments[this.currentSegIdx];
         if (!seg) return;
 
-        // Stop exactly at seg.end; the 200ms END_PADDING in transcriber already covers trailing consonants.
         const stopAt = seg.end;
         let fired = false;
-        let started = false;
+        const handle = { timerId: null, onTimeUpdate: null };
+
         const stop = () => {
           if (fired || token !== this._seekToken) return;
           fired = true;
@@ -600,17 +600,17 @@ function app() {
           this._scheduleRepeatNext(this._audio.currentTime);
         };
 
-        const delay = Math.max(0, (stopAt - this._audio.currentTime) * 1000);
-        const timerId = setTimeout(stop, delay);
-
-        const onTimeUpdate = () => {
+        handle.onTimeUpdate = () => {
           const t = this._audio.currentTime;
-          if (t >= seg.start && t < stopAt + 1.0) started = true;
-          if (started && t >= stopAt) stop();
+          // Defer timer until audio is actually playing near seg.start (absorbs seek/buffer delay)
+          if (handle.timerId === null && t >= seg.start - 0.5 && t <= stopAt) {
+            handle.timerId = setTimeout(stop, Math.max(0, (stopAt - t) * 1000));
+          }
+          if (t >= stopAt) stop();
         };
-        this._audio.addEventListener('timeupdate', onTimeUpdate);
 
-        this._trackHandler = { timerId, onTimeUpdate };
+        this._audio.addEventListener('timeupdate', handle.onTimeUpdate);
+        this._trackHandler = handle;
       } else {
         this._trackHandler = () => this._trackNormal();
         this._audio.addEventListener('timeupdate', this._trackHandler);
@@ -619,8 +619,8 @@ function app() {
 
     _clearTrack() {
       if (this._trackHandler === null) return;
-      if (typeof this._trackHandler === 'object' && 'timerId' in this._trackHandler) {
-        clearTimeout(this._trackHandler.timerId);
+      if (typeof this._trackHandler === 'object' && 'onTimeUpdate' in this._trackHandler) {
+        if (this._trackHandler.timerId !== null) clearTimeout(this._trackHandler.timerId);
         this._audio.removeEventListener('timeupdate', this._trackHandler.onTimeUpdate);
       } else {
         this._audio.removeEventListener('timeupdate', this._trackHandler);
