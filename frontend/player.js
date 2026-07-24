@@ -264,7 +264,7 @@ function app() {
         const poll = setInterval(async () => {
           const r = await fetch(`/api/files/transcribe/${encodeURIComponent(filename)}/status`);
           const data = await r.json();
-          if (data.status === 'done' || data.status === 'error') {
+          if (data.status === 'done' || data.status === 'error' || data.status === 'not_started') {
             clearInterval(poll);
             this.transcribingFiles = { ...this.transcribingFiles, [filename]: false };
             await this.loadLibrary();
@@ -362,6 +362,7 @@ function app() {
         this.transcribeStatus = 'processing';
         this.pollTranscribe(filename);
       } else {
+        // not_started or unknown
         this.transcribeStatus = '';
       }
     },
@@ -379,6 +380,9 @@ function app() {
           clearInterval(this.transcribePoll);
           this.transcribeStatus = 'error';
           this.transcribeError = data.message;
+        } else if (data.status === 'not_started') {
+          clearInterval(this.transcribePoll);
+          this.transcribeStatus = '';
         }
       }, 2000);
     },

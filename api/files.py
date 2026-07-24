@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 # Global semaphore — only one transcription job runs at a time across all sources
 _transcribe_lock = threading.Semaphore(1)
 
+# Tracks files for which a transcription background task has been submitted but not yet completed
+_active_transcriptions: set = set()
+
 UPLOAD_DIR = Path("data/uploads")
 ARCHIVE_DIR = Path("data/archive")
 
@@ -192,6 +195,7 @@ def transcribe_file(filename: str, background_tasks: BackgroundTasks, req: Trans
     if cached is not None:
         return {"status": "cached", "segments": cached}
 
+    _active_transcriptions.add(str(path))
     background_tasks.add_task(_do_transcribe, path, req.split_by_punctuation)
     return {"status": "processing"}
 
@@ -213,7 +217,9 @@ def transcribe_status(filename: str):
     if error_path.exists():
         with open(error_path, "r", encoding="utf-8") as f:
             return {"status": "error", "message": f.read()}
-    return {"status": "processing"}
+    if str(path) in _active_transcriptions:
+        return {"status": "processing"}
+    return {"status": "not_started"}
 
 
 @router.post("/cache/cleanup")
@@ -276,3 +282,4 @@ def _do_transcribe(audio_path: Path, split_by_punctuation: bool = False):
         error_path.write_text(err, encoding="utf-8")
     finally:
         _transcribe_lock.release()
+        _active_transcriptions.discard(str(audio_path))
