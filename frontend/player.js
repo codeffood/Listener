@@ -568,10 +568,7 @@ function app() {
       this.currentRepeat = repeat;
       this.playing = true;
 
-      // Seek 100ms before targetTime to compensate for seek+buffer latency,
-      // so the first word of the segment is not missed.
-      const seekTo = Math.max(0, targetTime - 0.1);
-      this._seekAndPlay(seekTo, () => {
+      this._seekAndPlay(targetTime, () => {
         this._audio.play();
         this._attachTracker();
       });
