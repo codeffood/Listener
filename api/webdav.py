@@ -1,5 +1,4 @@
 import json
-import hashlib
 import tempfile
 import traceback
 import logging
@@ -18,13 +17,12 @@ logger = logging.getLogger(__name__)
 NAS_CACHE_DIR = Path("data/cache/nas")
 
 # In-memory status for NAS transcription jobs: key = (nas_idx, remote_path)
-_nas_jobs: dict = {}   # key -> {"status": "processing"|"done"|"error", "segments": [...], "message": ""}
+_nas_jobs: dict = {}
 
 
 def _nas_cache_path(nas_idx: int, remote_path: str) -> Path:
-    key = f"{nas_idx}:{remote_path}"
-    h = hashlib.md5(key.encode()).hexdigest()
-    return NAS_CACHE_DIR / f"{h}.json"
+    stem = Path(remote_path).stem
+    return NAS_CACHE_DIR / str(nas_idx) / f"{stem}.json"
 
 
 class ConnectRequest(BaseModel):

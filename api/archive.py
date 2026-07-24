@@ -1,5 +1,4 @@
 import json
-import hashlib
 import shutil
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
@@ -30,9 +29,8 @@ def _save_library(entries: list):
 
 
 def _nas_cache_path(nas_idx: int, remote_path: str) -> Path:
-    key = f"{nas_idx}:{remote_path}"
-    h = hashlib.md5(key.encode()).hexdigest()
-    return NAS_CACHE_DIR / f"{h}.json"
+    stem = Path(remote_path).stem
+    return NAS_CACHE_DIR / str(nas_idx) / f"{stem}.json"
 
 
 def _local_cache_path(name: str) -> Path:

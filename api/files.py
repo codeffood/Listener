@@ -1,6 +1,5 @@
 import os
 import json
-import hashlib
 import traceback
 import logging
 import threading
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 _transcribe_lock = threading.Semaphore(1)
 
 UPLOAD_DIR = Path("data/uploads")
-LEGACY_CACHE_DIR = Path("data/cache")
 ARCHIVE_DIR = Path("data/archive")
 
 AUDIO_MIME = {
@@ -38,38 +36,21 @@ AUDIO_MIME = {
 
 
 def _cache_path(audio_path: Path) -> Path:
-    """Return <audio_path>.json (same directory as the audio file)."""
     return audio_path.with_suffix(".json")
 
 
-def _legacy_cache_path(audio_path: Path) -> Path:
-    h = hashlib.md5(str(audio_path).encode()).hexdigest()
-    return LEGACY_CACHE_DIR / f"{h}.json"
-
-
 def _load_cache(audio_path: Path):
-    """Load cache, preferring same-dir JSON; fall back to old MD5 cache."""
-    new = _cache_path(audio_path)
-    if new.exists():
+    p = _cache_path(audio_path)
+    if p.exists():
         try:
-            with open(new, "r", encoding="utf-8") as f:
+            with open(p, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError):
-            new.unlink(missing_ok=True)  # corrupt file, delete and re-transcribe
-    old = _legacy_cache_path(audio_path)
-    if old.exists():
-        try:
-            with open(old, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            new.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-            return data
-        except (json.JSONDecodeError, OSError):
-            old.unlink(missing_ok=True)
+            p.unlink(missing_ok=True)
     return None
 
 
 def _find_in_archive(filename: str) -> Path | None:
-    """Find a file by exact name anywhere in the archive directory (glob-safe)."""
     if not ARCHIVE_DIR.exists():
         return None
     for p in ARCHIVE_DIR.rglob("*"):
@@ -79,32 +60,18 @@ def _find_in_archive(filename: str) -> Path | None:
 
 
 def _load_cache_with_fallback(audio_path: Path, filename: str):
-    """Load cache for a file, also checking legacy cache keyed from original upload path."""
     cached = _load_cache(audio_path)
     if cached is not None:
         return cached
-    # If the file was archived, the legacy MD5 cache was computed from the original upload path.
-    # Try that path even though the audio file no longer lives there.
+    # File may have been archived — check original upload path cache
     original_path = UPLOAD_DIR / filename
     if audio_path != original_path:
         cached = _load_cache(original_path)
         if cached is not None:
-            # migrate: write cache next to archived audio so future loads are fast
             _cache_path(audio_path).write_text(
                 json.dumps(cached, ensure_ascii=False, indent=2), encoding="utf-8"
             )
     return cached
-    files = []
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    for f in UPLOAD_DIR.iterdir():
-        if f.suffix.lower() in (".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac", ".mkv", ".avi", ".mov", ".webm"):
-            files.append({
-                "name": f.name,
-                "size": f.stat().st_size,
-                "path": str(f),
-                "transcribed": _cache_path(f).exists() or _legacy_cache_path(f).exists(),
-            })
-    return sorted(files, key=lambda x: x["name"])
 
 
 @router.post("/upload")
@@ -185,16 +152,9 @@ def delete_file(filename: str):
         raise HTTPException(404, "文件不存在")
     stem = Path(filename).stem
     path.unlink()
-    # Remove co-located cache and legacy MD5 cache
-    for p in [_cache_path(path), _legacy_cache_path(path),
-              _cache_path(path).with_suffix(".error"), _legacy_cache_path(path).with_suffix(".error")]:
-        if p.exists():
-            p.unlink()
-    # Also clean up any stem-named JSON left in uploads dir (edge cases)
     for p in UPLOAD_DIR.glob(f"{stem}.*"):
         if p.suffix in (".json", ".error"):
             p.unlink(missing_ok=True)
-    # Remove from library
     try:
         from api.library import remove_entry, RemoveRequest
         remove_entry(RemoveRequest(name=filename))
@@ -213,10 +173,8 @@ class TranscribeRequest(BaseModel):
 def clear_transcribe_cache(filename: str):
     path = UPLOAD_DIR / filename
     cache = _cache_path(path)
-    legacy = _legacy_cache_path(path)
-    for p in [cache, legacy, cache.with_suffix(".error"), legacy.with_suffix(".error")]:
-        if p.exists():
-            p.unlink()
+    for p in [cache, cache.with_suffix(".error")]:
+        p.unlink(missing_ok=True)
     return {"status": "cleared"}
 
 
@@ -289,17 +247,6 @@ def cleanup_cache():
             if f.stem not in known:
                 f.unlink(missing_ok=True)
                 deleted_orphan += 1
-
-    # Check legacy MD5 cache dir
-    if LEGACY_CACHE_DIR.exists():
-        for f in LEGACY_CACHE_DIR.iterdir():
-            if f.suffix == ".json":
-                try:
-                    with open(f, "r", encoding="utf-8") as fh:
-                        json.load(fh)
-                except (json.JSONDecodeError, OSError):
-                    f.unlink(missing_ok=True)
-                    deleted_corrupt += 1
 
     return {"deleted_orphan": deleted_orphan, "deleted_corrupt": deleted_corrupt}
 
