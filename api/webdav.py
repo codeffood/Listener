@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from core import webdav as wdav
 from core.settings import load_settings
 from core.transcriber import transcribe
+from api.files import _transcribe_lock
 
 router = APIRouter(prefix="/api/webdav", tags=["webdav"])
 logger = logging.getLogger(__name__)
@@ -219,6 +220,7 @@ def _do_nas_transcribe(nas: dict, remote_path: str, cache: Path, job_key: tuple,
     tmp_path = None
     tmp_srt = None
     logger.info(f"NAS 转录开始: {remote_path}")
+    _transcribe_lock.acquire()
     try:
         audio_bytes = wdav.download_bytes(url, user, pw, remote_path)
         ext = Path(remote_path).suffix
@@ -265,6 +267,7 @@ def _do_nas_transcribe(nas: dict, remote_path: str, cache: Path, job_key: tuple,
         logger.error(f"NAS 转录失败 {remote_path}:\n{err}")
         _nas_jobs[job_key] = {"status": "error", "segments": [], "message": err}
     finally:
+        _transcribe_lock.release()
         for p in [tmp_path, tmp_srt]:
             if p:
                 try:

@@ -3,6 +3,7 @@ import json
 import hashlib
 import traceback
 import logging
+import threading
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
@@ -13,6 +14,9 @@ from core.settings import load_settings
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 logger = logging.getLogger(__name__)
+
+# Global semaphore — only one transcription job runs at a time across all sources
+_transcribe_lock = threading.Semaphore(1)
 
 UPLOAD_DIR = Path("data/uploads")
 LEGACY_CACHE_DIR = Path("data/cache")
@@ -297,6 +301,7 @@ def cleanup_cache():
 def _do_transcribe(audio_path: Path, split_by_punctuation: bool = False):
     cache = _cache_path(audio_path)
     error_path = cache.with_suffix(".error")
+    _transcribe_lock.acquire()
     try:
         settings = load_settings()
         segments = transcribe(
@@ -316,3 +321,5 @@ def _do_transcribe(audio_path: Path, split_by_punctuation: bool = False):
         logger.error(f"转录失败 {audio_path}:\n{err}")
         cache.parent.mkdir(parents=True, exist_ok=True)
         error_path.write_text(err, encoding="utf-8")
+    finally:
+        _transcribe_lock.release()
