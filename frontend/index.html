@@ -293,37 +293,70 @@
       </div>
 
       <!-- 归档库 -->
-      <div class="mt-6" x-show="archiveItems.length > 0">
-        <button @click="showArchiveSection = !showArchiveSection"
+      <div class="mt-6">
+        <button @click="showArchiveSection = !showArchiveSection; if(showArchiveSection) loadArchiveBrowse()"
           class="w-full flex items-center justify-between px-1 mb-2 text-xs font-medium text-gray-500 uppercase tracking-widest hover:text-gray-300 transition-colors">
-          <span>📦 归档库（<span x-text="archiveItems.length"></span> 个）</span>
+          <span>📦 归档库</span>
           <span x-text="showArchiveSection ? '▲' : '▼'"></span>
         </button>
-        <div x-show="showArchiveSection" class="space-y-1.5">
-          <template x-for="f in archiveItems" :key="f.type === 'nas' ? f.path : f.name">
-            <div class="bg-gray-800/50 rounded-lg px-4 py-3 flex items-center gap-3 group transition-colors opacity-70 hover:opacity-100">
-              <div class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold bg-yellow-900/40 text-yellow-500">
-                📦
+
+        <div x-show="showArchiveSection">
+          <!-- 面包屑 + 排序 -->
+          <div class="flex items-center gap-2 mb-2">
+            <button x-show="archivePathStack.length > 0" @click="archiveGoBack()"
+              class="flex items-center gap-1 text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-full transition-colors shrink-0">
+              ← 返回
+            </button>
+            <span class="text-xs text-gray-500 truncate flex-1"
+              x-text="archivePath ? '/' + archivePath : '/'"></span>
+            <button @click="archiveSort='asc'; _applyArchiveSort()"
+              :class="archiveSort==='asc' ? 'bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600'"
+              class="text-xs px-2.5 py-1 rounded-full transition-colors">A→Z</button>
+            <button @click="archiveSort='desc'; _applyArchiveSort()"
+              :class="archiveSort==='desc' ? 'bg-blue-700 text-white' : 'bg-gray-700 hover:bg-gray-600'"
+              class="text-xs px-2.5 py-1 rounded-full transition-colors">Z→A</button>
+          </div>
+
+          <!-- 空提示 -->
+          <p x-show="archiveBrowseSubdirs.length === 0 && archiveBrowseFiles.length === 0"
+            class="text-sm text-gray-600 text-center py-6">归档库为空</p>
+
+          <div class="space-y-1">
+            <!-- 子文件夹 -->
+            <template x-for="dir in archiveBrowseSubdirs" :key="dir">
+              <div @click="archiveEnterDir(dir)"
+                class="bg-gray-800 hover:bg-gray-700 rounded-lg px-3 py-2.5 flex items-center gap-2 cursor-pointer transition-colors">
+                <span class="text-base shrink-0">📁</span>
+                <span class="text-sm flex-1 truncate" x-text="dir"></span>
+                <span class="text-xs text-gray-500">进入 →</span>
               </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-1.5 mb-0.5">
-                  <span class="text-xs px-1.5 py-0.5 rounded font-medium shrink-0 bg-yellow-900/40 text-yellow-400"
-                    x-text="f.archive_folder"></span>
-                  <span class="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
-                    :class="f.type === 'nas' ? 'bg-blue-900/60 text-blue-300' : 'bg-gray-700 text-gray-400'"
-                    x-text="f.type === 'nas' ? f.nas_name : '本地'"></span>
-                  <p class="text-sm font-medium truncate text-gray-400 group-hover:text-white transition-colors" x-text="f.name"></p>
+            </template>
+
+            <!-- 该层文件 -->
+            <template x-for="f in archiveBrowseFiles" :key="f.type === 'nas' ? f.path : f.name">
+              <div class="bg-gray-800/60 rounded-lg px-3 py-2.5 flex items-center gap-3 group transition-colors hover:bg-gray-700/60">
+                <div class="shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-bold"
+                  :class="f.transcribed ? 'bg-blue-900/50 text-blue-400' : 'bg-gray-700 text-gray-400'">
+                  <span x-text="f.transcribed ? '✓' : '🎵'"></span>
                 </div>
-                <p class="text-xs text-gray-600" x-text="(f.size ? formatBytes(f.size) + ' · ' : '') + (f.transcribed ? '已分句' : '未分句')"></p>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5 mb-0.5">
+                    <span class="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
+                      :class="f.type === 'nas' ? 'bg-blue-900/60 text-blue-300' : 'bg-gray-700 text-gray-400'"
+                      x-text="f.type === 'nas' ? f.nas_name : '本地'"></span>
+                    <p class="text-sm truncate text-gray-400 group-hover:text-white transition-colors" x-text="f.name"></p>
+                  </div>
+                  <p class="text-xs text-gray-600" x-text="(f.size ? formatBytes(f.size) + ' · ' : '') + (f.transcribed ? '已分句' : '未分句')"></p>
+                </div>
+                <div class="flex gap-1.5 shrink-0">
+                  <button @click="f.type === 'nas' ? openNasFile(f.nas_idx, f.path) : openFile(f.name)"
+                    class="text-xs bg-gray-700 hover:bg-blue-700 px-2.5 py-1 rounded-full transition-colors">▶ 播放</button>
+                  <button @click="restoreItem(f)"
+                    class="text-xs bg-gray-700 hover:bg-green-700 px-2.5 py-1 rounded-full transition-colors">↩ 恢复</button>
+                </div>
               </div>
-              <div class="flex gap-1.5 shrink-0">
-                <button @click="f.type === 'nas' ? openNasFile(f.nas_idx, f.path) : openFile(f.name)"
-                  class="text-xs bg-gray-700 hover:bg-blue-700 px-2.5 py-1 rounded-full transition-colors">▶ 播放</button>
-                <button @click="restoreItem(f)"
-                  class="text-xs bg-gray-700 hover:bg-green-700 px-2.5 py-1 rounded-full transition-colors">↩ 恢复</button>
-              </div>
-            </div>
-          </template>
+            </template>
+          </div>
         </div>
       </div>
     </div>

@@ -51,10 +51,16 @@ function app() {
     archiveFolders: [],
     archiveItems: [],
     showArchiveModal: false,
-    archiveTarget: null,      // {type, name, path, nas_idx}
-    archiveFolderInput: '',   // new folder name typed by user
-    archiveSelectedFolder: '', // picked from existing list
+    archiveTarget: null,
+    archiveFolderInput: '',
+    archiveSelectedFolder: '',
     showArchiveSection: false,
+    // browse state
+    archivePath: '',          // current path inside data/archive/
+    archivePathStack: [],     // navigation stack
+    archiveBrowseSubdirs: [], // subdirs at current level
+    archiveBrowseFiles: [],   // files at current level
+    archiveSort: 'none',      // 'none' | 'asc' | 'desc'
 
     async init() {
       this._audio = document.getElementById('audio-player');
@@ -72,6 +78,7 @@ function app() {
       await this.loadSettings();
       await this.loadLibrary();
       await this.loadArchiveFolders();
+      await this.loadArchiveBrowse();
 
       // System media controls (lock screen / notification bar)
       if ('mediaSession' in navigator) {
@@ -116,6 +123,37 @@ function app() {
       this.archiveFolders = await r.json();
     },
 
+    async loadArchiveBrowse() {
+      const r = await fetch(`/api/archive/browse?path=${encodeURIComponent(this.archivePath)}`);
+      const data = await r.json();
+      this.archiveBrowseSubdirs = data.subdirs;
+      this.archiveBrowseFiles   = data.files;
+      this._applyArchiveSort();
+    },
+
+    _applyArchiveSort() {
+      const cmp = (a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+      if (this.archiveSort === 'asc') {
+        this.archiveBrowseSubdirs = [...this.archiveBrowseSubdirs].sort();
+        this.archiveBrowseFiles   = [...this.archiveBrowseFiles].sort(cmp);
+      } else if (this.archiveSort === 'desc') {
+        this.archiveBrowseSubdirs = [...this.archiveBrowseSubdirs].sort().reverse();
+        this.archiveBrowseFiles   = [...this.archiveBrowseFiles].sort(cmp).reverse();
+      }
+    },
+
+    archiveEnterDir(name) {
+      this.archivePathStack.push(this.archivePath);
+      this.archivePath = this.archivePath ? this.archivePath + '/' + name : name;
+      this.loadArchiveBrowse();
+    },
+
+    archiveGoBack() {
+      if (!this.archivePathStack.length) return;
+      this.archivePath = this.archivePathStack.pop();
+      this.loadArchiveBrowse();
+    },
+
     openArchiveModal(item) {
       this.archiveTarget = item;
       this.archiveFolderInput = '';
@@ -139,6 +177,7 @@ function app() {
       this.showArchiveModal = false;
       await this.loadArchiveFolders();
       await this.loadLibrary();
+      await this.loadArchiveBrowse();
     },
 
     async restoreItem(item) {
@@ -152,6 +191,7 @@ function app() {
       });
       if (!r.ok) { alert('恢复失败: ' + await r.text()); return; }
       await this.loadLibrary();
+      await this.loadArchiveBrowse();
     },
 
     exportSegments() {

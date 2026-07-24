@@ -61,6 +61,45 @@ def list_folders():
     return result
 
 
+# ── browse one level ──────────────────────────────────────────────────────────
+
+AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac"}
+
+@router.get("/browse")
+def browse(path: str = ""):
+    """List direct children of data/archive/<path>: subdirs + archived library entries."""
+    base = ARCHIVE_DIR / path if path else ARCHIVE_DIR
+    base.mkdir(parents=True, exist_ok=True)
+
+    # subdirectories at this level
+    subdirs = sorted([d.name for d in base.iterdir() if d.is_dir()])
+
+    # library entries archived into exactly this folder
+    rel_path = path  # e.g. "" or "2024" or "2024/BBC"
+    entries = _load_library()
+    files = []
+    for e in entries:
+        if not e.get("archived"):
+            continue
+        folder = e.get("archive_folder", "")
+        if folder != rel_path:
+            continue
+        ec = dict(e)
+        if e["type"] == "local":
+            audio = ARCHIVE_DIR / folder / e["name"]
+            cache = ARCHIVE_DIR / folder / (Path(e["name"]).stem + ".json")
+            ec["exists"]      = audio.exists()
+            ec["transcribed"] = cache.exists()
+            if audio.exists():
+                ec["size"] = audio.stat().st_size
+        else:
+            cache_name = e.get("archive_cache_name", "")
+            ec["transcribed"] = bool(cache_name and (ARCHIVE_DIR / folder / cache_name).exists())
+        files.append(ec)
+
+    return {"subdirs": subdirs, "files": files}
+
+
 # ── list archived entries ─────────────────────────────────────────────────────
 
 @router.get("/entries")
