@@ -337,19 +337,17 @@ function app() {
       this._audio.src = `/api/files/audio/${encodeURIComponent(filename)}`;
       this._audio.load();
 
-      const r = await fetch(`/api/files/transcribe/${encodeURIComponent(filename)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ split_by_punctuation: splitByPunctuation }),
-      });
+      // Only load existing cache — do NOT trigger transcription automatically
+      const r = await fetch(`/api/files/transcribe/${encodeURIComponent(filename)}/status`);
       const data = await r.json();
-
-      if (data.status === 'cached') {
+      if (data.status === 'done') {
         this.segments = data.segments;
         this.transcribeStatus = 'done';
+      } else if (data.status === 'error') {
+        this.transcribeStatus = 'error';
+        this.transcribeError = data.message;
       } else {
-        this.transcribeStatus = 'processing';
-        this.pollTranscribe(filename);
+        this.transcribeStatus = '';
       }
     },
 
@@ -423,20 +421,22 @@ function app() {
       });
       await this.loadLibrary();
 
-      const r = await fetch('/api/webdav/nas/transcribe', {
+      // Only load existing cache — do NOT trigger transcription automatically
+      const r = await fetch('/api/webdav/nas/transcribe/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nas_idx: nasIdx, path: remotePath }),
       });
       const data = await r.json();
-
-      if (data.status === 'cached' || data.status === 'done') {
+      if (data.status === 'done') {
         this.segments = data.segments;
         this.transcribeStatus = 'done';
         await this.loadLibrary();
+      } else if (data.status === 'error') {
+        this.transcribeStatus = 'error';
+        this.transcribeError = data.message;
       } else {
-        this.transcribeStatus = 'processing';
-        this._pollNasTranscribe(nasIdx, remotePath);
+        this.transcribeStatus = '';
       }
     },
 
