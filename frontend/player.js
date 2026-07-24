@@ -576,11 +576,7 @@ function app() {
 
         // Stop 30ms before seg.end to absorb execution delay.
         // seg.end already has 150ms padding, so last word is still fully audible.
-        const nextSeg = this.segments[this.currentSegIdx + 1];
-        const stopAt = Math.min(
-          seg.end - 0.03,
-          nextSeg ? nextSeg.start - 0.1 : seg.end - 0.03
-        );
+        const stopAt = seg.end - 0.03;
         let fired = false;
         let started = false;
         const stop = () => {

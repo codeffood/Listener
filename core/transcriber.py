@@ -265,9 +265,9 @@ def _merge_and_split(
         next_start = result[i + 1]["start"] if i + 1 < len(result) else None
         padded_end = seg["end"] + END_PADDING
         if next_start is not None:
-            padded_end = min(padded_end, next_start - 0.05)
-        seg["end"] = round(max(padded_end, seg["start"] + 0.1), 3)
-        seg.pop("words", None)  # Strip internal data from API output
+            padded_end = min(padded_end, next_start)
+        seg["end"] = round(padded_end, 3)
+        seg.pop("words", None)
 
     return result
 
