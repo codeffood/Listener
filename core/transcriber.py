@@ -259,13 +259,14 @@ def _merge_and_split(
         else:
             result.append(seg)
 
-    END_PADDING = 0.15  # 150ms tail padding to avoid clipping trailing consonants
+    END_PADDING = 0.20  # 200ms tail padding to avoid clipping trailing consonants
+    MIN_PADDING = 0.08  # always keep at least 80ms regardless of next sentence start
     for i, seg in enumerate(result):
         seg["id"] = i
         next_start = result[i + 1]["start"] if i + 1 < len(result) else None
         padded_end = seg["end"] + END_PADDING
         if next_start is not None:
-            padded_end = min(padded_end, next_start)
+            padded_end = min(padded_end, max(seg["end"] + MIN_PADDING, next_start))
         seg["end"] = round(padded_end, 3)
         seg.pop("words", None)
 

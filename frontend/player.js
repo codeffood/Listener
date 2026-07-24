@@ -588,9 +588,8 @@ function app() {
         const seg = this.segments[this.currentSegIdx];
         if (!seg) return;
 
-        // Stop 30ms before seg.end to absorb execution delay.
-        // seg.end already has 150ms padding, so last word is still fully audible.
-        const stopAt = seg.end - 0.03;
+        // Stop exactly at seg.end; the 200ms END_PADDING in transcriber already covers trailing consonants.
+        const stopAt = seg.end;
         let fired = false;
         let started = false;
         const stop = () => {
