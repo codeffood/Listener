@@ -346,6 +346,9 @@ function app() {
       } else if (data.status === 'error') {
         this.transcribeStatus = 'error';
         this.transcribeError = data.message;
+      } else if (data.status === 'processing') {
+        this.transcribeStatus = 'processing';
+        this.pollTranscribe(filename);
       } else {
         this.transcribeStatus = '';
       }
@@ -435,6 +438,9 @@ function app() {
       } else if (data.status === 'error') {
         this.transcribeStatus = 'error';
         this.transcribeError = data.message;
+      } else if (data.status === 'processing') {
+        this.transcribeStatus = 'processing';
+        this._pollNasTranscribe(nasIdx, remotePath);
       } else {
         this.transcribeStatus = '';
       }
