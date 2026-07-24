@@ -349,8 +349,6 @@
                   <p class="text-xs text-gray-600" x-text="(f.size ? formatBytes(f.size) + ' · ' : '') + (f.transcribed ? '已分句' : '未分句')"></p>
                 </div>
                 <div class="flex gap-1.5 shrink-0">
-                  <button @click="f.type === 'nas' ? openNasFile(f.nas_idx, f.path) : openFile(f.name)"
-                    class="text-xs bg-gray-700 hover:bg-blue-700 px-2.5 py-1 rounded-full transition-colors">▶ 播放</button>
                   <button @click="restoreItem(f)"
                     class="text-xs bg-gray-700 hover:bg-green-700 px-2.5 py-1 rounded-full transition-colors">↩ 恢复</button>
                 </div>
