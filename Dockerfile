@@ -26,7 +26,10 @@ RUN pip config set global.trusted-host "pypi.org files.pythonhosted.org download
 RUN pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu \
  && pip install --no-cache-dir -r requirements.txt \
  && python -m spacy download en_core_web_sm \
- && python -c "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='float32')"
+ && python -c "from faster_whisper import WhisperModel; WhisperModel('tiny.en', device='cpu', compute_type='float32')" \
+ && python -c "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='float32')" \
+ && python -c "from faster_whisper import WhisperModel; WhisperModel('small.en', device='cpu', compute_type='float32')" \
+ && python -c "from faster_whisper import WhisperModel; WhisperModel('medium.en', device='cpu', compute_type='float32')"
 
 COPY . .
 
