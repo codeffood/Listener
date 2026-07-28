@@ -564,6 +564,11 @@ function app() {
       }
     },
 
+    _segStart(seg) {
+      const offset = this.settings.seek_start_offset ?? 0.1;
+      return Math.max(0, seg.start - offset);
+    },
+
     _playFromSeg(idx, repeat, targetTime) {
       this._clearTrack();
       this.currentSegIdx = idx;
@@ -649,14 +654,13 @@ function app() {
       if (infinite || this.currentRepeat < maxRepeat) {
         const seg = this.segments[this.currentSegIdx];
         this._repeatTimer = setTimeout(() => {
-          this._playFromSeg(this.currentSegIdx, this.currentRepeat + 1, seg.start);
+          this._playFromSeg(this.currentSegIdx, this.currentRepeat + 1, this._segStart(seg));
         }, this.settings.pause_between_repeats * 1000);
       } else {
         const nextIdx = this.currentSegIdx + 1;
         if (nextIdx < this.segments.length) {
-          const nextStart = Math.max(stoppedAt, this.segments[nextIdx].start);
           this._repeatTimer = setTimeout(() => {
-            this._playFromSeg(nextIdx, 1, nextStart);
+            this._playFromSeg(nextIdx, 1, this._segStart(this.segments[nextIdx]));
           }, this.settings.pause_between_segments * 1000);
         } else {
           this._repeatTimer = setTimeout(() => {
@@ -717,16 +721,16 @@ function app() {
 
     prevSegment() {
       const idx = Math.max(0, this.currentSegIdx - 1);
-      this._playFromSeg(idx, 1, this.segments[idx].start);
+      this._playFromSeg(idx, 1, this._segStart(this.segments[idx]));
     },
 
     nextSegment() {
       const idx = Math.min(this.segments.length - 1, this.currentSegIdx + 1);
-      this._playFromSeg(idx, 1, this.segments[idx].start);
+      this._playFromSeg(idx, 1, this._segStart(this.segments[idx]));
     },
 
     jumpToSegment(idx) {
-      this._playFromSeg(idx, 1, this.segments[idx].start);
+      this._playFromSeg(idx, 1, this._segStart(this.segments[idx]));
     },
 
     seekFromBar(event) {
@@ -738,7 +742,7 @@ function app() {
       if (this.segments.length > 0) {
         let idx = this.segments.findIndex(s => s.end > targetTime);
         if (idx < 0) idx = this.segments.length - 1;
-        this._playFromSeg(idx, 1, targetTime);
+        this._playFromSeg(idx, 1, this._segStart(this.segments[idx]));
       } else {
         this._seekToken++;
         this._audio.currentTime = targetTime;

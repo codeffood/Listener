@@ -16,6 +16,7 @@ DEFAULT_SETTINGS = {
     "use_srt": False,
     "end_padding": 0.15,
     "vad_min_silence_ms": 300,
+    "seek_start_offset": 0.1,
     "nas_list": []
 }
 

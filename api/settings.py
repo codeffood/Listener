@@ -26,6 +26,7 @@ class Settings(BaseModel):
     use_srt: bool = False
     end_padding: float = 0.15
     vad_min_silence_ms: int = 300
+    seek_start_offset: float = 0.1
     nas_list: List[NasEntry] = []
 
 

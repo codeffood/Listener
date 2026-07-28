@@ -506,6 +506,11 @@
             <input type="number" x-model.number="settings.vad_min_silence_ms" min="100" max="2000" step="50"
               class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
           </div>
+          <div>
+            <label class="text-xs text-gray-400 block mb-1">句首提前量（秒）— 播每句时提前多久开始，补偿 Whisper 时间戳偏晚，默认 0.1</label>
+            <input type="number" x-model.number="settings.seek_start_offset" min="0" max="0.5" step="0.05"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
+          </div>
         </div>
 
         <div>
