@@ -80,24 +80,28 @@ def _load_cache_with_fallback(audio_path: Path, filename: str):
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     allowed = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".aac", ".mkv", ".avi", ".mov", ".webm"}
-    ext = Path(file.filename).suffix.lower()
+    safe_name = Path(file.filename).name
+    ext = Path(safe_name).suffix.lower()
     if ext not in allowed:
         raise HTTPException(400, f"不支持的格式: {ext}")
 
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    dest = UPLOAD_DIR / file.filename
+    dest = UPLOAD_DIR / safe_name
+    if not dest.resolve().is_relative_to(UPLOAD_DIR.resolve()):
+        raise HTTPException(400, "非法路径")
     async with aiofiles.open(dest, "wb") as f:
         content = await file.read()
         await f.write(content)
 
-    return {"name": file.filename, "path": str(dest)}
+    return {"name": safe_name, "path": str(dest)}
 
 
 @router.get("/audio/{filename}")
 def serve_audio(filename: str, request: Request):
-    path = UPLOAD_DIR / filename
-    if not path.exists():
-        found = _find_in_archive(filename)
+    safe_name = Path(filename).name
+    path = UPLOAD_DIR / safe_name
+    if not path.resolve().is_relative_to(UPLOAD_DIR.resolve()) or not path.exists():
+        found = _find_in_archive(safe_name)
         if found:
             path = found
     if not path.exists():
@@ -108,10 +112,13 @@ def serve_audio(filename: str, request: Request):
     range_header = request.headers.get("range")
 
     if range_header:
-        range_val = range_header.strip().replace("bytes=", "")
-        parts = range_val.split("-")
-        start = int(parts[0]) if parts[0] else 0
-        end = int(parts[1]) if parts[1] else file_size - 1
+        try:
+            range_val = range_header.strip().replace("bytes=", "")
+            parts = range_val.split("-", 1)
+            start = int(parts[0]) if parts[0] else 0
+            end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
+        except (ValueError, IndexError):
+            raise HTTPException(416, "无效的 Range 头")
         end = min(end, file_size - 1)
         length = end - start + 1
 
@@ -150,10 +157,11 @@ def serve_audio(filename: str, request: Request):
 
 @router.delete("/delete/{filename}")
 def delete_file(filename: str):
-    path = UPLOAD_DIR / filename
-    if not path.exists():
+    safe_name = Path(filename).name
+    path = UPLOAD_DIR / safe_name
+    if not path.resolve().is_relative_to(UPLOAD_DIR.resolve()) or not path.exists():
         raise HTTPException(404, "文件不存在")
-    stem = Path(filename).stem
+    stem = Path(safe_name).stem
     path.unlink()
     for p in UPLOAD_DIR.glob(f"{stem}.*"):
         if p.suffix in (".json", ".error"):
@@ -174,7 +182,8 @@ class TranscribeRequest(BaseModel):
 
 @router.delete("/transcribe/{filename}/clear")
 def clear_transcribe_cache(filename: str):
-    path = UPLOAD_DIR / filename
+    safe_name = Path(filename).name
+    path = UPLOAD_DIR / safe_name
     cache = _cache_path(path)
     for p in [cache, cache.with_suffix(".error")]:
         p.unlink(missing_ok=True)
@@ -183,15 +192,16 @@ def clear_transcribe_cache(filename: str):
 
 @router.post("/transcribe/{filename}")
 def transcribe_file(filename: str, background_tasks: BackgroundTasks, req: TranscribeRequest = TranscribeRequest()):
-    path = UPLOAD_DIR / filename
+    safe_name = Path(filename).name
+    path = UPLOAD_DIR / safe_name
     if not path.exists():
-        found = _find_in_archive(filename)
+        found = _find_in_archive(safe_name)
         if found:
             path = found
     if not path.exists():
         raise HTTPException(404, "文件不存在")
 
-    cached = _load_cache_with_fallback(path, filename)
+    cached = _load_cache_with_fallback(path, safe_name)
     if cached is not None:
         return {"status": "cached", "segments": cached}
 
@@ -202,16 +212,17 @@ def transcribe_file(filename: str, background_tasks: BackgroundTasks, req: Trans
 
 @router.get("/transcribe/{filename}/status")
 def transcribe_status(filename: str):
-    path = UPLOAD_DIR / filename
+    safe_name = Path(filename).name
+    path = UPLOAD_DIR / safe_name
     if not path.exists():
-        found = _find_in_archive(filename)
+        found = _find_in_archive(safe_name)
         if found:
             path = found
 
     cache = _cache_path(path)
     error_path = cache.with_suffix(".error")
 
-    cached = _load_cache_with_fallback(path, filename)
+    cached = _load_cache_with_fallback(path, safe_name)
     if cached is not None:
         return {"status": "done", "segments": cached}
     if error_path.exists():
@@ -271,6 +282,8 @@ def _do_transcribe(audio_path: Path, split_by_punctuation: bool = False):
             merge_threshold=settings["merge_threshold"],
             split_by_punctuation=split_by_punctuation,
             use_srt=settings.get("use_srt", False),
+            end_padding=settings.get("end_padding", 0.15),
+            vad_min_silence_ms=settings.get("vad_min_silence_ms", 300),
         )
         cache.write_text(json.dumps(segments, ensure_ascii=False, indent=2), encoding="utf-8")
         if error_path.exists():

@@ -345,6 +345,7 @@ function app() {
       this._currentNasIdx = null;
       this._currentNasPath = '';
       this._stopAll();
+      if (this.transcribePoll) { clearInterval(this.transcribePoll); this.transcribePoll = null; }
 
       this._audio.src = `/api/files/audio/${encodeURIComponent(filename)}`;
       this._audio.load();
@@ -427,6 +428,7 @@ function app() {
       this._currentNasIdx = nasIdx;
       this._currentNasPath = remotePath;
       this._stopAll();
+      if (this.transcribePoll) { clearInterval(this.transcribePoll); this.transcribePoll = null; }
 
       this._audio.src = streamUrl;
       this._audio.load();
@@ -588,27 +590,27 @@ function app() {
         const seg = this.segments[this.currentSegIdx];
         if (!seg) return;
 
-        // Stop 30ms before seg.end to absorb execution delay.
-        // seg.end already has 150ms padding, so last word is still fully audible.
-        const stopAt = seg.end - 0.03;
-        let fired = false;
-        const stop = () => {
-          if (fired || token !== this._seekToken) return;
-          fired = true;
-          this._clearTrack();
-          this._audio.pause();
-          this._scheduleRepeatNext(this._audio.currentTime);
+        // rAF fires every ~16ms vs timeupdate's ~250ms — overshoot is imperceptible.
+        // seg.end already carries 150ms tail padding from the server.
+        const stopAt = seg.end;
+        let rafId = null;
+
+        const tick = () => {
+          if (token !== this._seekToken) { rafId = null; return; }
+          if (this._audio.currentTime >= stopAt) {
+            rafId = null;
+            this._clearTrack();
+            this._audio.pause();
+            this._scheduleRepeatNext(this._audio.currentTime);
+          } else {
+            rafId = requestAnimationFrame(tick);
+          }
         };
 
-        const delay = Math.max(0, (stopAt - this._audio.currentTime) * 1000);
-        const timerId = setTimeout(stop, delay);
-
-        const onTimeUpdate = () => {
-          if (this._audio.currentTime >= stopAt) stop();
+        rafId = requestAnimationFrame(tick);
+        this._trackHandler = {
+          cancel() { if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; } },
         };
-        this._audio.addEventListener('timeupdate', onTimeUpdate);
-
-        this._trackHandler = { timerId, onTimeUpdate };
       } else {
         this._trackHandler = () => this._trackNormal();
         this._audio.addEventListener('timeupdate', this._trackHandler);
@@ -617,11 +619,10 @@ function app() {
 
     _clearTrack() {
       if (this._trackHandler === null) return;
-      if (typeof this._trackHandler === 'object' && 'timerId' in this._trackHandler) {
-        clearTimeout(this._trackHandler.timerId);
-        this._audio.removeEventListener('timeupdate', this._trackHandler.onTimeUpdate);
-      } else {
+      if (typeof this._trackHandler === 'function') {
         this._audio.removeEventListener('timeupdate', this._trackHandler);
+      } else {
+        this._trackHandler.cancel();
       }
       this._trackHandler = null;
     },

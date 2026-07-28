@@ -107,11 +107,10 @@ def stream_nas_pdf(nas_idx: int, path: str):
 
 @router.get("/stream")
 def stream_nas_audio(nas_idx: int, path: str, request: Request):
-    """Proxy-stream a NAS audio file to the browser without saving locally."""
+    """Proxy-stream a NAS audio file to the browser without loading it all into memory."""
     nas = _get_nas(nas_idx)
     url, user, pw = nas["url"], nas["username"], nas["password"]
 
-    # Determine content-type from extension
     AUDIO_MIME = {
         ".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4",
         ".mp4": "video/mp4", ".flac": "audio/flac", ".ogg": "audio/ogg",
@@ -122,23 +121,24 @@ def stream_nas_audio(nas_idx: int, path: str, request: Request):
     mime = AUDIO_MIME.get(ext, "audio/mpeg")
 
     try:
-        data = wdav.download_bytes(url, user, pw, path)
+        total = wdav.get_file_size(url, user, pw, path)
     except Exception as e:
         raise HTTPException(502, f"NAS 读取失败: {str(e)}")
 
-    total = len(data)
     range_header = request.headers.get("range")
 
     if range_header:
-        range_val = range_header.strip().replace("bytes=", "")
-        parts = range_val.split("-")
-        start = int(parts[0]) if parts[0] else 0
-        end = int(parts[1]) if parts[1] else total - 1
+        try:
+            range_val = range_header.strip().replace("bytes=", "")
+            parts = range_val.split("-", 1)
+            start = int(parts[0]) if parts[0] else 0
+            end = int(parts[1]) if len(parts) > 1 and parts[1] else total - 1
+        except (ValueError, IndexError):
+            raise HTTPException(416, "无效的 Range 头")
         end = min(end, total - 1)
         length = end - start + 1
-        chunk = data[start:end + 1]
         return StreamingResponse(
-            iter([chunk]),
+            wdav.iter_file_range(url, user, pw, path, start, length),
             status_code=206,
             media_type=mime,
             headers={
@@ -148,8 +148,11 @@ def stream_nas_audio(nas_idx: int, path: str, request: Request):
             },
         )
 
+    def iter_full():
+        yield from wdav.iter_file_range(url, user, pw, path, 0, total)
+
     return StreamingResponse(
-        iter([data]),
+        iter_full(),
         media_type=mime,
         headers={
             "Accept-Ranges": "bytes",
@@ -254,6 +257,8 @@ def _do_nas_transcribe(nas: dict, remote_path: str, cache: Path, job_key: tuple,
             srt_path=srt_path_local,
             split_by_punctuation=split_by_punctuation,
             use_srt=settings.get("use_srt", False),
+            end_padding=settings.get("end_padding", 0.15),
+            vad_min_silence_ms=settings.get("vad_min_silence_ms", 300),
         )
 
         cache.parent.mkdir(parents=True, exist_ok=True)

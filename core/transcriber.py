@@ -37,6 +37,8 @@ def transcribe(
     srt_path: Optional[str] = None,
     split_by_punctuation: bool = False,
     use_srt: bool = False,
+    end_padding: float = 0.15,
+    vad_min_silence_ms: int = 300,
 ) -> List[Dict]:
     # Only use SRT if explicitly enabled
     if use_srt:
@@ -47,7 +49,7 @@ def transcribe(
         if srt_path and Path(srt_path).exists():
             entries = _parse_srt_entries(srt_path)
             if entries:
-                return _sentences_from_srt_entries(entries, min_duration, max_duration)
+                return _sentences_from_srt_entries(entries, min_duration, max_duration, end_padding)
 
     # Fall back to Whisper
     model = get_model(model_name)
@@ -58,7 +60,7 @@ def transcribe(
         beam_size=5,
         condition_on_previous_text=False,
         vad_filter=True,
-        vad_parameters={"min_silence_duration_ms": 300},
+        vad_parameters={"min_silence_duration_ms": vad_min_silence_ms},
     )
 
     words = []
@@ -71,14 +73,15 @@ def transcribe(
         return []
 
     if split_by_punctuation:
-        return _sentences_from_punctuation(words, min_duration, max_duration)
-    return _sentences_from_words(words, min_duration, max_duration)
+        return _sentences_from_punctuation(words, min_duration, max_duration, end_padding)
+    return _sentences_from_words(words, min_duration, max_duration, end_padding)
 
 
 def _sentences_from_punctuation(
     words: List[Dict],
     min_dur: float,
     max_dur: float,
+    end_padding: float = 0.15,
 ) -> List[Dict]:
     """Split at sentence-ending punctuation (.?!), then merge/split by duration."""
     SENT_END = set(".?!。？！…")
@@ -101,7 +104,7 @@ def _sentences_from_punctuation(
             "text": "".join(cw["word"] for cw in current_words).strip(),
             "words": list(current_words),
         })
-    return _merge_and_split(raw, min_dur, max_dur)
+    return _merge_and_split(raw, min_dur, max_dur, end_padding)
 
 
 def _srt_time(ts: str) -> float:
@@ -152,6 +155,7 @@ def _sentences_from_srt_entries(
     entries: List[Dict],
     min_dur: float,
     max_dur: float,
+    end_padding: float = 0.15,
 ) -> List[Dict]:
     """
     Use SRT cue times directly (no interpolation) + spaCy for sentence boundaries.
@@ -182,13 +186,14 @@ def _sentences_from_srt_entries(
             "text":  sent.text.strip(),
         })
 
-    return _merge_and_split(raw_sentences, min_dur, max_dur)
+    return _merge_and_split(raw_sentences, min_dur, max_dur, end_padding)
 
 
 def _sentences_from_words(
     words: List[Dict],
     min_dur: float,
     max_dur: float,
+    end_padding: float = 0.15,
 ) -> List[Dict]:
     nlp = get_nlp()
 
@@ -225,13 +230,14 @@ def _sentences_from_words(
             "words": matched_words,
         })
 
-    return _merge_and_split(raw_sentences, min_dur, max_dur)
+    return _merge_and_split(raw_sentences, min_dur, max_dur, end_padding)
 
 
 def _merge_and_split(
     segments: List[Dict],
     min_dur: float,
     max_dur: float,
+    end_padding: float = 0.15,
 ) -> List[Dict]:
     if not segments:
         return []
@@ -266,7 +272,7 @@ def _merge_and_split(
         if result[i]["end"] > result[i + 1]["start"]:
             result[i]["end"] = result[i + 1]["start"]
 
-    END_PADDING = 0.15
+    END_PADDING = end_padding
     for i, seg in enumerate(result):
         seg["id"] = i
         next_start = result[i + 1]["start"] if i + 1 < len(result) else None

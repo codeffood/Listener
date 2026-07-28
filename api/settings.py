@@ -24,6 +24,8 @@ class Settings(BaseModel):
     whisper_model: str = "base.en"
     split_by_punctuation: bool = False
     use_srt: bool = False
+    end_padding: float = 0.15
+    vad_min_silence_ms: int = 300
     nas_list: List[NasEntry] = []
 
 
@@ -35,6 +37,5 @@ def get_settings():
 @router.post("")
 def update_settings(settings: Settings):
     data = settings.model_dump()
-    data["nas_list"] = [n for n in data["nas_list"]]
     saved = save_settings(data)
     return saved

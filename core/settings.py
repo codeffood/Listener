@@ -14,6 +14,8 @@ DEFAULT_SETTINGS = {
     "whisper_model": "base.en",
     "split_by_punctuation": False,
     "use_srt": False,
+    "end_padding": 0.15,
+    "vad_min_silence_ms": 300,
     "nas_list": []
 }
 

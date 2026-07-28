@@ -455,12 +455,12 @@
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="text-xs text-gray-400 block mb-1">最短句子时长（秒）</label>
+            <label class="text-xs text-gray-400 block mb-1">最短句子时长（秒）— 太短的句子会被合并</label>
             <input type="number" x-model.number="settings.min_segment_duration" min="1" max="30" step="0.5"
               class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
           </div>
           <div>
-            <label class="text-xs text-gray-400 block mb-1">最长句子时长（秒）</label>
+            <label class="text-xs text-gray-400 block mb-1">最长句子时长（秒）— 超过会被拆开</label>
             <input type="number" x-model.number="settings.max_segment_duration" min="3" max="60" step="0.5"
               class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
           </div>
@@ -470,18 +470,28 @@
               class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
           </div>
           <div>
-            <label class="text-xs text-gray-400 block mb-1">重复间停顿（秒）</label>
+            <label class="text-xs text-gray-400 block mb-1">重复间停顿（秒）— 同一句两次之间停多久</label>
             <input type="number" x-model.number="settings.pause_between_repeats" min="0" max="5" step="0.1"
               class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
           </div>
           <div>
-            <label class="text-xs text-gray-400 block mb-1">句子间停顿（秒）</label>
+            <label class="text-xs text-gray-400 block mb-1">句子间停顿（秒）— 上一句复读完到下一句停多久</label>
             <input type="number" x-model.number="settings.pause_between_segments" min="0" max="10" step="0.1"
               class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
           </div>
           <div>
-            <label class="text-xs text-gray-400 block mb-1">合并短句阈值（秒）</label>
+            <label class="text-xs text-gray-400 block mb-1">合并短句阈值（秒）— 短于最短时长多少秒时合并到下一句</label>
             <input type="number" x-model.number="settings.merge_threshold" min="0.5" max="10" step="0.5"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 block mb-1">句尾补白（秒）— 每句结束后多播多久防止尾音被截，听写练习可调到 0.25</label>
+            <input type="number" x-model.number="settings.end_padding" min="0" max="1" step="0.05"
+              class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 block mb-1">VAD 静音阈值（毫秒）— 停顿多久才算句子边界，越大句子越长越少</label>
+            <input type="number" x-model.number="settings.vad_min_silence_ms" min="100" max="2000" step="50"
               class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm" />
           </div>
         </div>
